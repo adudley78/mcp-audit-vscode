@@ -1,0 +1,16 @@
+# Changelog
+
+## 0.1.0 — 2026-05-18
+
+Initial release.
+
+- Inline diagnostics for MCP server configuration files in VS Code and Cursor
+- Severity-mapped squiggles: CRITICAL/HIGH → Error, MEDIUM → Warning, LOW → Information, INFO → Hint
+- Hover cards with finding title, description, evidence, remediation, OWASP tags, and CVE cross-references
+- Status bar grade badge (`mcp-audit: A (0 findings)`)
+- Auto-detection of the `mcp-audit` binary from PATH and common install locations
+- `mcp-audit: Scan current file`, `mcp-audit: Scan workspace`, and `mcp-audit: Fix current file` command palette actions
+- `mcp-audit.binaryPath`, `severityThreshold`, `runOnSave`, `runOnOpen` settings
+- Graceful degradation when the binary is not found (one-time notification, no error storm)
+- File size guard (5 MB), scan timeout (10 s), malformed-JSON diagnostic
+- jsonc-parser based server-key line resolution (squiggles on the right server block, falls back to line 1)

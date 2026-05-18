@@ -1,0 +1,99 @@
+{
+  "name": "mcp-audit-vscode",
+  "displayName": "mcp-audit",
+  "description": "Inline security diagnostics for MCP server configuration files",
+  "version": "0.1.0",
+  "publisher": "mcp-audit",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcp-audit/mcp-audit-vscode"
+  },
+  "homepage": "https://github.com/mcp-audit/mcp-audit-vscode#readme",
+  "bugs": {
+    "url": "https://github.com/mcp-audit/mcp-audit-vscode/issues"
+  },
+  "engines": {
+    "vscode": ">=1.85.0"
+  },
+  "categories": ["Linters"],
+  "keywords": ["mcp", "security", "linter", "diagnostics", "model-context-protocol"],
+  "icon": "icon.png",
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mcp-audit.scanCurrentFile",
+        "title": "mcp-audit: Scan current file"
+      },
+      {
+        "command": "mcp-audit.scanWorkspace",
+        "title": "mcp-audit: Scan workspace"
+      },
+      {
+        "command": "mcp-audit.fixCurrentFile",
+        "title": "mcp-audit: Fix current file"
+      }
+    ],
+    "configuration": {
+      "title": "mcp-audit",
+      "properties": {
+        "mcp-audit.binaryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the mcp-audit binary. Leave empty to auto-detect from PATH and common install locations."
+        },
+        "mcp-audit.severityThreshold": {
+          "type": "string",
+          "default": "info",
+          "enum": ["info", "low", "medium", "high", "critical"],
+          "enumDescriptions": [
+            "Show all findings (INFO and above)",
+            "Show LOW and above",
+            "Show MEDIUM and above",
+            "Show HIGH and above",
+            "Show CRITICAL only"
+          ],
+          "description": "Minimum severity level to report as diagnostics."
+        },
+        "mcp-audit.runOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically run mcp-audit when an MCP config file is saved."
+        },
+        "mcp-audit.runOnOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically run mcp-audit when an MCP config file is opened."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "node esbuild.js --production",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "compile-tests": "tsc -p tsconfig.test.json",
+    "pretest": "npm run compile-tests && npm run build",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out-test/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.12.0",
+    "@types/sinon": "^17.0.3",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.7.0",
+    "@typescript-eslint/parser": "^7.7.0",
+    "@vscode/test-electron": "^2.3.9",
+    "esbuild": "^0.21.0",
+    "eslint": "^8.57.0",
+    "mocha": "^10.4.0",
+    "sinon": "^17.0.1",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1"
+  }
+}
