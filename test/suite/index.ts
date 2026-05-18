@@ -1,6 +1,6 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import Mocha from 'mocha';
-import { glob } from 'glob';
 
 export async function run(): Promise<void> {
   const mocha = new Mocha({
@@ -9,8 +9,10 @@ export async function run(): Promise<void> {
     timeout: 15_000,
   });
 
-  const testsRoot = path.resolve(__dirname, '.');
-  const files = await glob('**/*.test.js', { cwd: testsRoot });
+  const testsRoot = __dirname;
+  const files = fs
+    .readdirSync(testsRoot)
+    .filter((f) => f.endsWith('.test.js'));
 
   for (const f of files) {
     mocha.addFile(path.resolve(testsRoot, f));

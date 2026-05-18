@@ -46,21 +46,22 @@ function isExecutable(binaryPath: string): boolean {
 }
 
 /**
- * Ask the shell where `mcp-audit` lives on PATH.
+ * Ask the OS where `mcp-audit` lives on PATH.
+ * Uses `spawnSync` with list-form args (no shell interpolation).
  * Returns the trimmed path string, or `undefined` if not found.
  */
 function whichSync(): string | undefined {
   const cmd = IS_WINDOWS ? 'where' : 'which';
   const binary = IS_WINDOWS ? 'mcp-audit.exe' : 'mcp-audit';
   try {
-    const result = cp.execSync(`${cmd} ${binary}`, {
+    const result = cp.spawnSync(cmd, [binary], {
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
       timeout: 3_000,
-      shell: false,
+      windowsHide: true,
     });
-    // `where` on Windows returns all matches; take the first line.
-    const first = result.trim().split(/\r?\n/)[0];
+    if (result.status !== 0 || !result.stdout) return undefined;
+    // `where` on Windows may return multiple matches; take the first line.
+    const first = result.stdout.trim().split(/\r?\n/)[0];
     return first && isExecutable(first) ? first : undefined;
   } catch {
     return undefined;
