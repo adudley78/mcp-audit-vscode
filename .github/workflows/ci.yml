@@ -20,6 +20,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
+          # @vscode/vsce requires Node >= 20 (undici dependency)
           node-version: '20'
           cache: 'npm'
 
@@ -43,9 +44,19 @@ jobs:
         if: runner.os != 'Linux'
         run: npm test
 
-      - name: Package VSIX
-        run: npx @vscode/vsce package --no-dependencies
-        if: matrix.os == 'ubuntu-latest'
+      - name: Package VSIX (packaging regression check)
+        run: npx vsce package --no-dependencies
+
+      - name: Verify VSIX size ≤ 2 MB
+        shell: bash
+        run: |
+          VSIX=$(ls *.vsix | head -1)
+          SIZE=$(wc -c < "$VSIX")
+          echo "VSIX: $VSIX — ${SIZE} bytes"
+          if [ "$SIZE" -gt 2097152 ]; then
+            echo "ERROR: VSIX exceeds 2 MB (${SIZE} bytes)" >&2
+            exit 1
+          fi
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4

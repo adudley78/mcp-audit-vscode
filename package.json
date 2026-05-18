@@ -16,8 +16,21 @@
   "engines": {
     "vscode": ">=1.85.0"
   },
-  "categories": ["Linters"],
-  "keywords": ["mcp", "security", "linter", "diagnostics", "model-context-protocol"],
+  "categories": [
+    "Linters",
+    "Security"
+  ],
+  "keywords": [
+    "mcp",
+    "security",
+    "mcp-audit",
+    "model-context-protocol",
+    "cursor",
+    "claude",
+    "linter",
+    "diagnostics",
+    "vulnerability"
+  ],
   "icon": "icon.png",
   "activationEvents": [],
   "main": "./dist/extension.js",
@@ -47,7 +60,13 @@
         "mcp-audit.severityThreshold": {
           "type": "string",
           "default": "info",
-          "enum": ["info", "low", "medium", "high", "critical"],
+          "enum": [
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
           "enumDescriptions": [
             "Show all findings (INFO and above)",
             "Show LOW and above",
@@ -87,6 +106,7 @@
     "@typescript-eslint/eslint-plugin": "^7.7.0",
     "@typescript-eslint/parser": "^7.7.0",
     "@vscode/test-electron": "^2.3.9",
+    "@vscode/vsce": "^2.26.0",
     "esbuild": "^0.21.0",
     "eslint": "^8.57.0",
     "mocha": "^10.4.0",

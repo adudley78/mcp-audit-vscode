@@ -1,12 +1,22 @@
-.vscode/**
-.github/**
-out/**
-out-test/**
+# Source files — not needed in the bundle (only dist/ is used at runtime)
 src/**
 test/**
-node_modules/**
-*.map
-tsconfig*.json
+**/*.ts
+**/*.js.map
+
+# Build tooling
 esbuild.js
+tsconfig*.json
 .eslintrc.json
+
+# Dev / CI infrastructure
+.vscode/**
+.github/**
+node_modules/**
+
+# Compiled test output
+out/**
+out-test/**
+
+# Misc
 .gitignore

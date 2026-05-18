@@ -1,39 +1,59 @@
 # mcp-audit — VS Code / Cursor Extension
 
-Inline security diagnostics for [MCP](https://modelcontextprotocol.io/) server configuration files, powered by the [mcp-audit](https://github.com/mcp-audit/mcp-audit) CLI.
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/mcp-audit.mcp-audit-vscode?label=VS%20Code%20Marketplace&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=mcp-audit.mcp-audit-vscode)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/mcp-audit.mcp-audit-vscode)](https://marketplace.visualstudio.com/items?itemName=mcp-audit.mcp-audit-vscode)
+[![Rating](https://img.shields.io/visual-studio-marketplace/r/mcp-audit.mcp-audit-vscode)](https://marketplace.visualstudio.com/items?itemName=mcp-audit.mcp-audit-vscode)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+
+**Inline security diagnostics for [MCP](https://modelcontextprotocol.io/) server configuration files, powered by [mcp-audit](https://github.com/mcp-audit/mcp-audit).**
+
+Red and yellow squiggles appear directly on vulnerable server keys in `claude_desktop_config.json`, `mcp.json`, and other MCP config files — the same findings `mcp-audit scan` reports, shown inline without leaving your editor.
+
+![mcp-audit diagnostic showing CRED-001 credential exposure warning in VS Code](screenshot-diagnostic.png)
 
 ---
 
-## What it does
+## How to use
 
-- **Red/yellow squiggles** on server keys in `claude_desktop_config.json`, `mcp.json`, and other supported MCP config files — the same findings `mcp-audit scan` reports, shown inline as you edit.
-- **Hover cards** with the finding title, severity, description, evidence, and remediation.
-- **Status bar** showing the current file's letter grade and finding count (e.g. `mcp-audit: B (3 findings)`). Clicking opens the Problems panel.
-- **Command palette** actions:
-  - `mcp-audit: Scan current file` — manual re-scan
-  - `mcp-audit: Scan workspace` — scan all open MCP config files
-  - `mcp-audit: Fix current file` — run `mcp-audit fix` and show the diff in the Output channel
+### Step 1 — Install the mcp-audit binary
 
-The extension is a thin wrapper — all detection logic runs in the `mcp-audit` binary. No detection is reimplemented in TypeScript.
-
----
-
-## Requirements
-
-Install the `mcp-audit` binary first:
+The extension shells out to the `mcp-audit` binary. Install it first:
 
 ```bash
 pip install mcp-audit
-# or download a binary from https://github.com/mcp-audit/mcp-audit/releases
 ```
 
-The extension auto-detects the binary from `PATH` and common install locations. Set `mcp-audit.binaryPath` explicitly if auto-detection fails.
+Or download a standalone binary for macOS, Linux, or Windows from the [Releases page](https://github.com/mcp-audit/mcp-audit/releases).
+
+### Step 2 — Install this extension
+
+Search for **mcp-audit** in the VS Code Extensions panel, or install from the terminal:
+
+```bash
+code --install-extension mcp-audit.mcp-audit-vscode
+```
+
+### Step 3 — Open an MCP config file
+
+Open any supported config file. Diagnostics appear automatically within 3 seconds. No configuration required.
 
 ---
 
-## Supported files
+## What you get
 
-| File name | Description |
+| Feature | Detail |
+|---|---|
+| **Squiggles** | Red (CRITICAL/HIGH) or yellow (MEDIUM) underlines on offending server keys |
+| **Hover cards** | Finding title, severity, description, evidence, remediation, OWASP MCP Top 10 tags |
+| **Status bar** | `mcp-audit: B (3 findings)` — click to open the Problems panel |
+| **Problems panel** | All findings listed with source `mcp-audit` and finding ID (e.g. `CRED-001`) |
+| **Auto-scan** | Scans on open and on save (both configurable) |
+
+---
+
+## Supported config files
+
+| File | MCP Client |
 |---|---|
 | `claude_desktop_config.json` | Claude Desktop |
 | `mcp.json` | Cursor, generic MCP |
@@ -44,14 +64,26 @@ The extension auto-detects the binary from `PATH` and common install locations. 
 
 ---
 
+## Command palette
+
+Open the command palette (`Cmd/Ctrl+Shift+P`) and search for **mcp-audit**:
+
+| Command | Action |
+|---|---|
+| `mcp-audit: Scan current file` | Manually re-scan the active file |
+| `mcp-audit: Scan workspace` | Scan all currently open MCP config files |
+| `mcp-audit: Fix current file` | Run `mcp-audit fix` and show the diff in the Output channel |
+
+---
+
 ## Settings
 
 | Setting | Default | Description |
 |---|---|---|
-| `mcp-audit.binaryPath` | `""` | Explicit path to the `mcp-audit` binary. Leave empty for auto-detection. |
-| `mcp-audit.severityThreshold` | `"info"` | Minimum severity to show (`info`, `low`, `medium`, `high`, `critical`). |
+| `mcp-audit.binaryPath` | `""` | Absolute path to the binary. Empty = auto-detect from PATH. |
+| `mcp-audit.severityThreshold` | `"info"` | Minimum severity to report (`info`, `low`, `medium`, `high`, `critical`). |
 | `mcp-audit.runOnSave` | `true` | Re-scan automatically on save. |
-| `mcp-audit.runOnOpen` | `true` | Scan automatically when a config file is opened. |
+| `mcp-audit.runOnOpen` | `true` | Scan when a config file is opened. |
 
 ---
 
@@ -59,35 +91,67 @@ The extension auto-detects the binary from `PATH` and common install locations. 
 
 | mcp-audit severity | VS Code diagnostic |
 |---|---|
-| CRITICAL | Error (red squiggle) |
-| HIGH | Error (red squiggle) |
-| MEDIUM | Warning (yellow squiggle) |
-| LOW | Information (blue line) |
-| INFO | Hint (grey dots) |
-
----
-
-## Known limitations
-
-- **Line-level precision:** Squiggles point to the *server key block* in the config, not the specific offending line within that block. The `mcp-audit` CLI does not yet expose per-finding line numbers — a follow-up story (Finding.line_number) will improve this.
-- **Large files:** Files over 5 MB are skipped (an INFO diagnostic is shown).
-- **Scan timeout:** If `mcp-audit` takes more than 10 seconds, the scan is cancelled and a warning is shown in the Output channel.
+| CRITICAL | ❌ Error (red squiggle) |
+| HIGH | ❌ Error (red squiggle) |
+| MEDIUM | ⚠️ Warning (yellow squiggle) |
+| LOW | ℹ️ Information (blue line) |
+| INFO | 💡 Hint (grey dots) |
 
 ---
 
 ## Cursor compatibility
 
-Cursor is a VS Code fork. This extension works in Cursor without modification — install the VSIX from the VS Code Marketplace or via `Extensions: Install from VSIX…` in Cursor.
+Cursor is a VS Code fork. This extension works in Cursor without modification. Install from the VS Code Marketplace or via `Extensions: Install from VSIX…` inside Cursor.
+
+---
+
+## Known limitations
+
+- **Line precision:** Squiggles point to the server *key block*, not the exact offending line within it. The mcp-audit CLI does not yet emit per-finding line numbers — a follow-up will improve this once `Finding.line_number` is added to the model.
+- **Large files:** Files over 5 MB are skipped (an INFO diagnostic is shown).
+- **Scan timeout:** Scans cancelled after 10 seconds with a warning in the Output channel.
+
+---
+
+## How it works
+
+The extension is a **thin wrapper** — it does not reimplement any detection logic:
+
+1. Detects MCP config files by file name.
+2. Spawns `mcp-audit scan --path <file> --format json`.
+3. Parses the JSON `ScanResult` and converts `Finding[]` to `vscode.Diagnostic[]`.
+4. Uses `jsonc-parser` to locate each finding's server key in the document.
+
+All security detection runs in the `mcp-audit` binary (Python). The extension is TypeScript + VS Code API only.
 
 ---
 
 ## Troubleshooting
 
-**"mcp-audit binary not found"** — Install `mcp-audit` (`pip install mcp-audit`) or set `mcp-audit.binaryPath` to the absolute path of your binary.
+**"mcp-audit binary not found"**
+Install `mcp-audit` with `pip install mcp-audit`, or set `mcp-audit.binaryPath` in your settings to the full path of the binary. Check `View → Output → mcp-audit` for details.
 
-**No squiggles on open files** — Check `mcp-audit.runOnOpen` is `true`, and run `mcp-audit: Scan current file` from the command palette. Check the **mcp-audit** Output channel (`View → Output → mcp-audit`) for error details.
+**No squiggles appear on open files**
+Make sure `mcp-audit.runOnOpen` is `true`. Run `mcp-audit: Scan current file` from the command palette and check the Output channel for errors. Confirm the file name matches one of the supported names above.
 
-**Squiggles are at line 1 instead of the right line** — This is a known limitation; see above.
+**Squiggles are at line 1 instead of the right line**
+This is a known limitation — see above. The finding is still reported correctly; only the underline position is approximate.
+
+---
+
+## Reporting issues
+
+Please open an issue on the [mcp-audit-vscode issue tracker](https://github.com/mcp-audit/mcp-audit-vscode/issues).
+
+For false positives or missed findings, please open an issue on the main [mcp-audit repo](https://github.com/mcp-audit/mcp-audit/issues) — those are detection bugs in the CLI, not the extension.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](https://github.com/mcp-audit/mcp-audit/blob/main/docs/contributing-rules.md) in the main mcp-audit repo for information on contributing detection rules.
+
+For extension bugs and PRs, see the [mcp-audit-vscode repository](https://github.com/mcp-audit/mcp-audit-vscode).
 
 ---
 
