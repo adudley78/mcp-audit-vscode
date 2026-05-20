@@ -31,7 +31,7 @@
     "diagnostics",
     "vulnerability"
   ],
-  "icon": "icon.png",
+  "icon": "images/icon.png",
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
