@@ -29,6 +29,12 @@ function candidatePaths(): string[] {
     path.join(home, '.local', 'bin', 'mcp-audit'),
     '/usr/local/bin/mcp-audit',
     path.join(home, '.cargo', 'bin', 'mcp-audit'),
+    '/opt/homebrew/bin/mcp-audit',
+    '/usr/local/opt/python/bin/mcp-audit',
+    '/Library/Frameworks/Python.framework/Versions/3.13/bin/mcp-audit',
+    '/Library/Frameworks/Python.framework/Versions/3.12/bin/mcp-audit',
+    '/Library/Frameworks/Python.framework/Versions/3.11/bin/mcp-audit',
+    '/Library/Frameworks/Python.framework/Versions/3.10/bin/mcp-audit',
   ];
 }
 
