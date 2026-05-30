@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 — 2026-05-30
+
+- Fix: extension now activates on JSON/JSONC open (`activationEvents` were empty in the original 0.1.0 scaffold and the same-version repackage never deployed the fix). Version bumped so the new build actually installs.
+
 ## 0.1.0 — 2026-05-18
 
 Initial release.

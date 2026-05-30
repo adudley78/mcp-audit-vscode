@@ -2,7 +2,7 @@
   "name": "mcp-audit-vscode",
   "displayName": "mcp-audit",
   "description": "Inline security diagnostics for MCP server configuration files",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "mcp-audit",
   "license": "Apache-2.0",
   "repository": {
@@ -32,7 +32,7 @@
     "vulnerability"
   ],
   "icon": "images/icon.png",
-  "activationEvents": ["onLanguage:json"],
+  "activationEvents": ["onLanguage:json", "onLanguage:jsonc"],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -96,7 +96,8 @@
     "compile-tests": "tsc -p tsconfig.test.json",
     "pretest": "npm run compile-tests && npm run build",
     "lint": "eslint src --ext ts",
-    "test": "node ./out-test/test/runTest.js"
+    "test": "node ./out-test/test/runTest.js",
+    "release:local": "bash scripts/release-local.sh"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",

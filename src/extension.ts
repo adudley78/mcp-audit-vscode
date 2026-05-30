@@ -1,8 +1,8 @@
 /**
  * mcp-audit VS Code extension — entry point.
  *
- * Activates automatically when an MCP config file is opened (activationEvents
- * handled via the "*" wildcard in package.json, which VS Code resolves lazily).
+ * Activates automatically when any JSON / JSONC file is opened
+ * (activationEvents: ["onLanguage:json", "onLanguage:jsonc"] in package.json).
  *
  * Wire-up:
  *  - Registers a DiagnosticCollection for all mcp-audit findings.
