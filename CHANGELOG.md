@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 — 2026-05-30
+
+- Fix: bundle jsonc-parser's ESM build via esbuild `mainFields` so the extension no longer throws `Cannot find module ./impl/format` on activation.
+
 ## 0.1.1 — 2026-05-30
 
 - Fix: extension now activates on JSON/JSONC open (`activationEvents` were empty in the original 0.1.0 scaffold and the same-version repackage never deployed the fix). Version bumped so the new build actually installs.

@@ -15,7 +15,9 @@ const buildOptions = {
   target: 'node18',
   sourcemap: !production,
   minify: production,
-  // jsonc-parser must be bundled (no native bindings; pure JS)
+  // prefer ESM builds so jsonc-parser is fully inlined (its UMD main
+  // leaves a dynamic require('./impl/format') esbuild can't follow)
+  mainFields: ['module', 'main'],
 };
 
 async function main() {
