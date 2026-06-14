@@ -56,6 +56,45 @@ suite('extension — isMcpConfigFile()', () => {
   });
 });
 
+suite('extension — activationEvents regression guard', () => {
+  test('package.json declares onLanguage:json activation', () => {
+    // Regression guard: activationEvents: [] caused silent non-activation in Cursor.
+    // Path resolves relative to *compiled* output (out-test/test/suite/), so use
+    // three levels up to reach the project root package.json.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const pkg = require('../../../package.json') as { activationEvents: string[] };
+    assert.ok(
+      pkg.activationEvents.includes('onLanguage:json'),
+      'activationEvents must include onLanguage:json'
+    );
+  });
+
+  test('package.json declares onLanguage:jsonc activation', () => {
+    // VS Code / Cursor may open .json files with language id "jsonc" (JSON with
+    // Comments). Without this event, the extension silently never activates.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const pkg = require('../../../package.json') as { activationEvents: string[] };
+    assert.ok(
+      pkg.activationEvents.includes('onLanguage:jsonc'),
+      'activationEvents must include onLanguage:jsonc'
+    );
+  });
+
+  test('isMcpConfigFile returns true for claude_desktop_config.json opened as jsonc', async () => {
+    const tmpPath = path.join(
+      require('os').tmpdir(),
+      'claude_desktop_config.json'
+    );
+    require('fs').writeFileSync(tmpPath, '{}');
+    const doc = await vscode.workspace.openTextDocument(
+      vscode.Uri.file(tmpPath).with({ scheme: 'file' })
+    );
+    // isMcpConfigFile checks basename, not language id — must pass regardless.
+    assert.ok(isMcpConfigFile(doc));
+    require('fs').unlinkSync(tmpPath);
+  });
+});
+
 suite('extension — binary not found notification', () => {
   let showWarningStub: sinon.SinonStub;
 

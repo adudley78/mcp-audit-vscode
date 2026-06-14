@@ -48,6 +48,40 @@ Open any supported config file. Diagnostics appear automatically within 3 second
 | **Status bar** | `mcp-audit: B (3 findings)` — click to open the Problems panel |
 | **Problems panel** | All findings listed with source `mcp-audit` and finding ID (e.g. `CRED-001`) |
 | **Auto-scan** | Scans on open and on save (both configurable) |
+| **Registry verdicts** | Inline badges and hover cards showing CVE counts, typosquat warnings, and registry status (requires mcp-audit ≥ 1.1.0) |
+
+---
+
+## Registry verdicts (mcp-audit ≥ 1.1.0)
+
+When `mcp-audit vet` is available, each configured server key gets an inline badge showing its registry standing:
+
+| Badge | Meaning |
+|---|---|
+| `✓ verified · 0 known CVEs (Anthropic)` | Package is in the registry, clean, with maintainer info |
+| `⚠ 2 known CVEs — CVE-2024-1234, CVE-2024-5678` | Known vulnerabilities — Warning diagnostic added |
+| `⚠ possible typosquat — did you mean filesystem?` | Package name looks like a typo — Warning diagnostic added |
+| `? not in registry — no verdict available` | Package not found in registry — hint only, no squiggle |
+
+> **TODO for Adam:** Replace the placeholder below with an actual demo GIF before the 0.2.0 Marketplace release.
+
+![mcp-audit verdict badges placeholder — demo GIF needed](verdict-demo-placeholder.png)
+
+Hovering over any server key shows the full verdict details: capabilities description, CVE list, and a link to the package's [mcp-audit.dev](https://mcp-audit.dev) page.
+
+### How it works
+
+The extension shells out to `mcp-audit vet <name> --format json` — no detection logic lives in TypeScript (ADR-0002). Results are cached per server name for the session; rapid saves are debounced (300 ms) to avoid redundant subprocess calls.
+
+### Feature detection and graceful degradation
+
+The first time an MCP config file is opened, the extension runs `mcp-audit vet --help`. If the subcommand is absent (binary older than 1.1.0) or fails, the verdict feature is silently disabled — scan diagnostics continue working normally.
+
+### Verdict settings
+
+| Setting | Default | Description |
+|---|---|---|
+| `mcp-audit.verdict.online` | `false` | Pass `--online` to `mcp-audit vet` for live registry lookups instead of the bundled snapshot |
 
 ---
 
@@ -84,6 +118,7 @@ Open the command palette (`Cmd/Ctrl+Shift+P`) and search for **mcp-audit**:
 | `mcp-audit.severityThreshold` | `"info"` | Minimum severity to report (`info`, `low`, `medium`, `high`, `critical`). |
 | `mcp-audit.runOnSave` | `true` | Re-scan automatically on save. |
 | `mcp-audit.runOnOpen` | `true` | Scan when a config file is opened. |
+| `mcp-audit.verdict.online` | `false` | Pass `--online` to `mcp-audit vet` for live registry lookups (requires mcp-audit ≥ 1.1.0). |
 
 ---
 

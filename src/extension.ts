@@ -34,6 +34,7 @@ import {
 } from './diagnostics';
 import { runScan } from './scanner';
 import { McpAuditStatusBar } from './statusBar';
+import { VerdictProvider } from './verdictProvider';
 import type { ScanResult } from './types';
 
 // ── Internal state ─────────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ import type { ScanResult } from './types';
 let diagnosticCollection: vscode.DiagnosticCollection;
 let outputChannel: vscode.OutputChannel;
 let statusBar: McpAuditStatusBar;
+let verdictProvider: VerdictProvider;
 
 /** Tracks whether the "binary not found" warning has already been shown. */
 let binaryWarningShown = false;
@@ -227,8 +229,16 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   outputChannel = vscode.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
   statusBar = new McpAuditStatusBar();
+  verdictProvider = new VerdictProvider((msg) =>
+    outputChannel.appendLine(`[mcp-audit] ${msg}`)
+  );
 
-  context.subscriptions.push(diagnosticCollection, outputChannel, statusBar);
+  context.subscriptions.push(
+    diagnosticCollection,
+    outputChannel,
+    statusBar,
+    verdictProvider
+  );
 
   // Scan on open (if enabled).
   context.subscriptions.push(
@@ -237,6 +247,7 @@ export function activate(context: vscode.ExtensionContext): void {
         .getConfiguration('mcp-audit')
         .get<boolean>('runOnOpen', true);
       if (runOnOpen) await scanDocument(doc);
+      if (isMcpConfigFile(doc)) verdictProvider.trigger(doc);
     })
   );
 
@@ -247,6 +258,7 @@ export function activate(context: vscode.ExtensionContext): void {
         .getConfiguration('mcp-audit')
         .get<boolean>('runOnSave', true);
       if (runOnSave) await scanDocument(doc);
+      if (isMcpConfigFile(doc)) verdictProvider.trigger(doc);
     })
   );
 
@@ -254,6 +266,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.workspace.onDidCloseTextDocument((doc) => {
       diagnosticCollection.delete(doc.uri);
+      verdictProvider.clear(doc.uri);
     })
   );
 
@@ -295,6 +308,7 @@ export function activate(context: vscode.ExtensionContext): void {
       .getConfiguration('mcp-audit')
       .get<boolean>('runOnOpen', true);
     if (runOnOpen) void scanDocument(doc);
+    if (isMcpConfigFile(doc)) verdictProvider.trigger(doc);
   }
 
   log('Extension activated.');
@@ -304,4 +318,5 @@ export function deactivate(): void {
   diagnosticCollection?.dispose();
   outputChannel?.dispose();
   statusBar?.dispose();
+  verdictProvider?.dispose();
 }

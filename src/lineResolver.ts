@@ -22,6 +22,54 @@ import * as vscode from 'vscode';
 import { MCP_JSON_ROOT_KEYS } from './constants';
 
 /**
+ * Return every server name + its key range from `mcpServers` / `servers`.
+ * Used by VerdictProvider to collect names for `mcp-audit vet` calls.
+ * Returns an empty array if the document has no server entries or is
+ * malformed.
+ */
+export function resolveAllServers(
+  document: vscode.TextDocument
+): Array<{ name: string; range: vscode.Range }> {
+  const results: Array<{ name: string; range: vscode.Range }> = [];
+  try {
+    const text = document.getText();
+    const root = jsonc.parseTree(text);
+    if (!root || root.type !== 'object' || !root.children) return results;
+
+    for (const rootKey of MCP_JSON_ROOT_KEYS) {
+      const serversNode = jsonc.findNodeAtLocation(root, [rootKey]);
+      if (
+        !serversNode ||
+        serversNode.type !== 'object' ||
+        !serversNode.children
+      ) {
+        continue;
+      }
+
+      for (const prop of serversNode.children) {
+        if (
+          prop.type !== 'property' ||
+          !prop.children ||
+          prop.children.length < 2
+        ) {
+          continue;
+        }
+        const keyNode = prop.children[0];
+        const name = keyNode.value as string;
+        if (typeof name !== 'string' || !name) continue;
+
+        const start = document.positionAt(keyNode.offset);
+        const end = document.positionAt(keyNode.offset + keyNode.length);
+        results.push({ name, range: new vscode.Range(start, end) });
+      }
+    }
+  } catch {
+    // Parse error — return whatever was collected so far.
+  }
+  return results;
+}
+
+/**
  * Return the document `Range` that covers the key token for `serverName`
  * within the `mcpServers` / `servers` block.
  *

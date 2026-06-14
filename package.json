@@ -2,7 +2,7 @@
   "name": "mcp-audit-vscode",
   "displayName": "mcp-audit",
   "description": "Inline security diagnostics for MCP server configuration files",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "mcp-audit",
   "license": "Apache-2.0",
   "repository": {
@@ -85,6 +85,11 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically run mcp-audit when an MCP config file is opened."
+        },
+        "mcp-audit.verdict.online": {
+          "type": "boolean",
+          "default": false,
+          "description": "Pass --online to mcp-audit vet for live registry lookups. Off by default (uses the bundled registry snapshot). Requires mcp-audit >= 1.1.0."
         }
       }
     }
