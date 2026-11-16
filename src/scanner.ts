@@ -1,5 +1,5 @@
 /**
- * Subprocess wrapper that invokes `mcp-audit scan` and returns parsed JSON.
+ * Subprocess wrapper that invokes `credenzo scan` and returns parsed JSON.
  *
  * Contracts:
  *  - Spawns with `shell: false` (list-form args, no injection surface).
@@ -21,7 +21,7 @@ export interface ScanOptions {
 }
 
 /**
- * Run `mcp-audit scan --path <filePath> --format json` and return the parsed
+ * Run `credenzo scan --path <filePath> --format json` and return the parsed
  * `ScanResult`. Rejects on timeout, spawn error, exit code 2, or JSON parse
  * failure.
  */
@@ -76,7 +76,7 @@ export function runScan(
       if (timedOut) return;
 
       if (code === 2) {
-        reject(new Error(`mcp-audit exited with code 2`));
+        reject(new Error(`Credenzo exited with code 2`));
         return;
       }
 
@@ -89,7 +89,7 @@ export function runScan(
       try {
         resolve(JSON.parse(stdout) as ScanResult);
       } catch {
-        reject(new Error(`Failed to parse mcp-audit output: ${stdout.slice(0, 300)}`));
+        reject(new Error(`Failed to parse Credenzo output: ${stdout.slice(0, 300)}`));
       }
     });
   });

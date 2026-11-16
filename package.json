@@ -1,17 +1,17 @@
 {
   "name": "mcp-audit-vscode",
-  "displayName": "mcp-audit",
-  "description": "Inline security diagnostics for MCP server configuration files",
-  "version": "0.2.0",
+  "displayName": "Credenzo",
+  "description": "Credenzo (formerly mcp-audit): inline security diagnostics for MCP server configuration files",
+  "version": "0.3.0",
   "publisher": "mcp-audit",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mcp-audit/mcp-audit-vscode"
+    "url": "https://github.com/adudley78/mcp-audit-vscode"
   },
-  "homepage": "https://github.com/mcp-audit/mcp-audit-vscode#readme",
+  "homepage": "https://credenzo.io",
   "bugs": {
-    "url": "https://github.com/mcp-audit/mcp-audit-vscode/issues"
+    "url": "https://github.com/adudley78/mcp-audit-vscode/issues"
   },
   "engines": {
     "vscode": ">=1.85.0"
@@ -29,33 +29,37 @@
     "claude",
     "linter",
     "diagnostics",
-    "vulnerability"
+    "vulnerability",
+    "credenzo"
   ],
   "icon": "images/icon.png",
-  "activationEvents": ["onLanguage:json", "onLanguage:jsonc"],
+  "activationEvents": [
+    "onLanguage:json",
+    "onLanguage:jsonc"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "mcp-audit.scanCurrentFile",
-        "title": "mcp-audit: Scan current file"
+        "title": "Credenzo: Scan current file"
       },
       {
         "command": "mcp-audit.scanWorkspace",
-        "title": "mcp-audit: Scan workspace"
+        "title": "Credenzo: Scan workspace"
       },
       {
         "command": "mcp-audit.fixCurrentFile",
-        "title": "mcp-audit: Fix current file"
+        "title": "Credenzo: Fix current file"
       }
     ],
     "configuration": {
-      "title": "mcp-audit",
+      "title": "Credenzo",
       "properties": {
         "mcp-audit.binaryPath": {
           "type": "string",
           "default": "",
-          "description": "Absolute path to the mcp-audit binary. Leave empty to auto-detect from PATH and common install locations."
+          "description": "Absolute path to the credenzo binary (or to mcp-audit, its old name). Leave empty to auto-detect from PATH and common install locations."
         },
         "mcp-audit.severityThreshold": {
           "type": "string",
@@ -79,17 +83,17 @@
         "mcp-audit.runOnSave": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically run mcp-audit when an MCP config file is saved."
+          "description": "Automatically run Credenzo when an MCP config file is saved."
         },
         "mcp-audit.runOnOpen": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically run mcp-audit when an MCP config file is opened."
+          "description": "Automatically run Credenzo when an MCP config file is opened."
         },
         "mcp-audit.verdict.online": {
           "type": "boolean",
           "default": false,
-          "description": "Pass --online to mcp-audit vet for live registry lookups. Off by default (uses the bundled registry snapshot). Requires mcp-audit >= 1.1.0."
+          "description": "Pass --online to credenzo vet for live registry lookups. Off by default (uses the bundled registry snapshot). Requires a release that has the vet command."
         }
       }
     }

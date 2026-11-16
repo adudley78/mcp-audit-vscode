@@ -300,7 +300,7 @@ suite('verdictProvider — VerdictProvider', () => {
 
     // No diagnostic should be registered for the 'unknown' verdict.
     const diags = vscode.languages.getDiagnostics(doc.uri);
-    const vetDiags = diags.filter((d) => d.source === 'mcp-audit-vet');
+    const vetDiags = diags.filter((d) => d.source === 'credenzo-vet');
     assert.strictEqual(
       vetDiags.length,
       0,
@@ -332,7 +332,7 @@ suite('verdictProvider — VerdictProvider', () => {
     await new Promise<void>((r) => setTimeout(r, 500));
 
     const diags = vscode.languages.getDiagnostics(doc.uri);
-    const vetDiags = diags.filter((d) => d.source === 'mcp-audit-vet');
+    const vetDiags = diags.filter((d) => d.source === 'credenzo-vet');
     assert.strictEqual(vetDiags.length, 1, 'one Warning for the CVE');
     assert.strictEqual(vetDiags[0].severity, vscode.DiagnosticSeverity.Warning);
     assert.ok(vetDiags[0].message.includes('CVE-2024-9001'), vetDiags[0].message);
@@ -361,7 +361,7 @@ suite('verdictProvider — VerdictProvider', () => {
     await new Promise<void>((r) => setTimeout(r, 500));
 
     const diags = vscode.languages.getDiagnostics(doc.uri);
-    const vetDiags = diags.filter((d) => d.source === 'mcp-audit-vet');
+    const vetDiags = diags.filter((d) => d.source === 'credenzo-vet');
     assert.strictEqual(vetDiags.length, 1);
     assert.strictEqual(vetDiags[0].severity, vscode.DiagnosticSeverity.Warning);
     assert.ok(
@@ -391,7 +391,7 @@ suite('verdictProvider — VerdictProvider', () => {
 
     // No diagnostics (vet failed, nothing to show).
     const diags = vscode.languages.getDiagnostics(doc.uri);
-    const vetDiags = diags.filter((d) => d.source === 'mcp-audit-vet');
+    const vetDiags = diags.filter((d) => d.source === 'credenzo-vet');
     assert.strictEqual(vetDiags.length, 0);
   });
 
@@ -415,14 +415,14 @@ suite('verdictProvider — VerdictProvider', () => {
 
     // Verify the diagnostic was set.
     const before = vscode.languages.getDiagnostics(doc.uri).filter(
-      (d) => d.source === 'mcp-audit-vet'
+      (d) => d.source === 'credenzo-vet'
     );
     assert.strictEqual(before.length, 1, 'diagnostic should be set before clear');
 
     provider.clear(doc.uri);
 
     const after = vscode.languages.getDiagnostics(doc.uri).filter(
-      (d) => d.source === 'mcp-audit-vet'
+      (d) => d.source === 'credenzo-vet'
     );
     assert.strictEqual(after.length, 0, 'diagnostic should be cleared');
   });

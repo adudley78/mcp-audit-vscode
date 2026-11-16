@@ -1,9 +1,9 @@
 /**
- * Inline registry verdicts via `mcp-audit vet` (requires mcp-audit >= 1.1.0).
+ * Inline registry verdicts via `credenzo vet` (requires credenzo >= 1.1.0).
  *
  * Behaviour:
  *  - On open/change/save of any MCP config file the extension already watches,
- *    extract every server key, call `mcp-audit vet` (debounced 300 ms), and
+ *    extract every server key, call `credenzo vet` (debounced 300 ms), and
  *    render inline decorations + hover cards.
  *  - Results are cached per server name for the lifetime of the VS Code session
  *    so repeated saves don't re-invoke vet for already-known packages.

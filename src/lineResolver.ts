@@ -11,7 +11,7 @@
  *  4. On any failure (malformed JSON, server key absent) fall back to line 0
  *     so the diagnostic is still surfaced at the top of the file.
  *
- * Known limitation: the mcp-audit `Finding` model does not yet carry
+ * Known limitation: the Credenzo `Finding` model does not yet carry
  * line/column information, so we infer position from the server name alone.
  * A follow-up story (Finding.line_number) will allow exact finding-level
  * precision when available.
@@ -23,7 +23,7 @@ import { MCP_JSON_ROOT_KEYS } from './constants';
 
 /**
  * Return every server name + its key range from `mcpServers` / `servers`.
- * Used by VerdictProvider to collect names for `mcp-audit vet` calls.
+ * Used by VerdictProvider to collect names for `credenzo vet` calls.
  * Returns an empty array if the document has no server entries or is
  * malformed.
  */
