@@ -66,7 +66,7 @@ suite('diagnostics — findingsToDiagnostics()', () => {
     assert.ok(diags[0].message.includes('CRED-001'));
     assert.ok(diags[0].message.includes('Credential Exposure'));
     assert.strictEqual(diags[0].code, 'CRED-001');
-    assert.strictEqual(diags[0].source, 'mcp-audit');
+    assert.strictEqual(diags[0].source, 'credenzo');
   });
 
   test('test_no_diagnostic_on_clean_scan — empty findings produces empty array', async () => {
@@ -98,7 +98,7 @@ suite('diagnostics — findingsToDiagnostics()', () => {
 
     const diags = findingsToDiagnostics([finding], doc);
 
-    assert.ok(diags[0].message.includes('mcp-audit: Fix current file'));
+    assert.ok(diags[0].message.includes('Credenzo: Fix current file'));
   });
 
   test('non-auto-fixable finding does not include fix hint', async () => {
@@ -109,7 +109,7 @@ suite('diagnostics — findingsToDiagnostics()', () => {
 
     const diags = findingsToDiagnostics([finding], doc);
 
-    assert.ok(!diags[0].message.includes('mcp-audit: Fix current file'));
+    assert.ok(!diags[0].message.includes('Credenzo: Fix current file'));
   });
 
   test('test_malformed_json_config — makeMalformedJsonDiagnostic produces error at line 0', async () => {

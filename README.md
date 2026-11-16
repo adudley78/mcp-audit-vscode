@@ -1,33 +1,33 @@
-# mcp-audit — VS Code / Cursor Extension
+# Credenzo — VS Code / Cursor Extension
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/mcp-audit.mcp-audit-vscode?label=VS%20Code%20Marketplace&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=mcp-audit.mcp-audit-vscode)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/mcp-audit.mcp-audit-vscode)](https://marketplace.visualstudio.com/items?itemName=mcp-audit.mcp-audit-vscode)
-[![Rating](https://img.shields.io/visual-studio-marketplace/r/mcp-audit.mcp-audit-vscode)](https://marketplace.visualstudio.com/items?itemName=mcp-audit.mcp-audit-vscode)
+[![Open VSX](https://img.shields.io/open-vsx/v/mcp-audit/mcp-audit-vscode)](https://open-vsx.org/extension/mcp-audit/mcp-audit-vscode)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-**Inline security diagnostics for [MCP](https://modelcontextprotocol.io/) server configuration files, powered by [mcp-audit](https://github.com/mcp-audit/mcp-audit).**
+> **mcp-audit is now Credenzo.** The extension id (`mcp-audit.mcp-audit-vscode`), the command ids and the `mcp-audit.*` settings keep their names, so an installed extension and your settings continue to work.
 
-Red and yellow squiggles appear directly on vulnerable server keys in `claude_desktop_config.json`, `mcp.json`, and other MCP config files — the same findings `mcp-audit scan` reports, shown inline without leaving your editor.
+**Inline security diagnostics for [MCP](https://modelcontextprotocol.io/) server configuration files, powered by [Credenzo](https://credenzo.io).**
 
-![mcp-audit diagnostic showing CRED-001 credential exposure warning in VS Code](screenshot-diagnostic.png)
+Red and yellow squiggles appear directly on vulnerable server keys in `claude_desktop_config.json`, `mcp.json`, and other MCP config files — the same findings `credenzo scan` reports, shown inline without leaving your editor.
+
+![Credenzo diagnostic showing CRED-001 credential exposure warning in VS Code](screenshot-diagnostic.png)
 
 ---
 
 ## How to use
 
-### Step 1 — Install the mcp-audit binary
+### Step 1 — Install Credenzo
 
-The extension shells out to the `mcp-audit` binary. Install it first:
+The extension runs the `credenzo` command (or `mcp-audit`, its old name, when only that is installed). Install it first:
 
 ```bash
-pip install mcp-audit
+pip install credenzo
 ```
 
-Or download a standalone binary for macOS, Linux, or Windows from the [Releases page](https://github.com/mcp-audit/mcp-audit/releases).
+Or download a standalone binary for macOS, Linux, or Windows from the [Releases page](https://github.com/adudley78/mcp-audit/releases).
 
 ### Step 2 — Install this extension
 
-Search for **mcp-audit** in the VS Code Extensions panel, or install from the terminal:
+In Cursor, Windsurf or VSCodium, search for **Credenzo** in the Extensions panel (the extension is on Open VSX). In VS Code, install from the terminal:
 
 ```bash
 code --install-extension mcp-audit.mcp-audit-vscode
@@ -45,16 +45,16 @@ Open any supported config file. Diagnostics appear automatically within 3 second
 |---|---|
 | **Squiggles** | Red (CRITICAL/HIGH) or yellow (MEDIUM) underlines on offending server keys |
 | **Hover cards** | Finding title, severity, description, evidence, remediation, OWASP MCP Top 10 tags |
-| **Status bar** | `mcp-audit: B (3 findings)` — click to open the Problems panel |
-| **Problems panel** | All findings listed with source `mcp-audit` and finding ID (e.g. `CRED-001`) |
+| **Status bar** | `Credenzo: B (3 findings)` — click to open the Problems panel |
+| **Problems panel** | All findings listed with source `credenzo` and finding ID (e.g. `CRED-001`) |
 | **Auto-scan** | Scans on open and on save (both configurable) |
-| **Registry verdicts** | Inline badges and hover cards showing CVE counts, typosquat warnings, and registry status (requires mcp-audit ≥ 1.1.0) |
+| **Registry verdicts** | Inline badges and hover cards showing CVE counts, typosquat warnings, and registry status (requires a release that has the `vet` command) |
 
 ---
 
-## Registry verdicts (mcp-audit ≥ 1.1.0)
+## Registry verdicts (Credenzo ≥ 1.1.0)
 
-When `mcp-audit vet` is available, each configured server key gets an inline badge showing its registry standing:
+When `credenzo vet` is available, each configured server key gets an inline badge showing its registry standing:
 
 | Badge | Meaning |
 |---|---|
@@ -65,23 +65,23 @@ When `mcp-audit vet` is available, each configured server key gets an inline bad
 
 > **TODO for Adam:** Replace the placeholder below with an actual demo GIF before the 0.2.0 Marketplace release.
 
-![mcp-audit verdict badges placeholder — demo GIF needed](verdict-demo-placeholder.png)
+![Credenzo verdict badges placeholder — demo GIF needed](verdict-demo-placeholder.png)
 
-Hovering over any server key shows the full verdict details: capabilities description, CVE list, and a link to the package's [mcp-audit.dev](https://mcp-audit.dev) page.
+Hovering over any server key shows the full verdict details: capabilities description, CVE list, and a link to the package's [credenzo.io](https://credenzo.io) page.
 
 ### How it works
 
-The extension shells out to `mcp-audit vet <name> --format json` — no detection logic lives in TypeScript (ADR-0002). Results are cached per server name for the session; rapid saves are debounced (300 ms) to avoid redundant subprocess calls.
+The extension shells out to `credenzo vet <name> --format json` — no detection logic lives in TypeScript (ADR-0002). Results are cached per server name for the session; rapid saves are debounced (300 ms) to avoid redundant subprocess calls.
 
 ### Feature detection and graceful degradation
 
-The first time an MCP config file is opened, the extension runs `mcp-audit vet --help`. If the subcommand is absent (binary older than 1.1.0) or fails, the verdict feature is silently disabled — scan diagnostics continue working normally.
+The first time an MCP config file is opened, the extension runs `credenzo vet --help`. If the subcommand is absent (binary older than 1.1.0) or fails, the verdict feature is silently disabled — scan diagnostics continue working normally.
 
 ### Verdict settings
 
 | Setting | Default | Description |
 |---|---|---|
-| `mcp-audit.verdict.online` | `false` | Pass `--online` to `mcp-audit vet` for live registry lookups instead of the bundled snapshot |
+| `mcp-audit.verdict.online` | `false` | Pass `--online` to `credenzo vet` for live registry lookups instead of the bundled snapshot |
 
 ---
 
@@ -100,13 +100,13 @@ The first time an MCP config file is opened, the extension runs `mcp-audit vet -
 
 ## Command palette
 
-Open the command palette (`Cmd/Ctrl+Shift+P`) and search for **mcp-audit**:
+Open the command palette (`Cmd/Ctrl+Shift+P`) and search for **Credenzo**:
 
 | Command | Action |
 |---|---|
-| `mcp-audit: Scan current file` | Manually re-scan the active file |
-| `mcp-audit: Scan workspace` | Scan all currently open MCP config files |
-| `mcp-audit: Fix current file` | Run `mcp-audit fix` and show the diff in the Output channel |
+| `Credenzo: Scan current file` | Manually re-scan the active file |
+| `Credenzo: Scan workspace` | Scan all currently open MCP config files |
+| `Credenzo: Fix current file` | Run `credenzo fix` and show the diff in the Output channel |
 
 ---
 
@@ -118,13 +118,13 @@ Open the command palette (`Cmd/Ctrl+Shift+P`) and search for **mcp-audit**:
 | `mcp-audit.severityThreshold` | `"info"` | Minimum severity to report (`info`, `low`, `medium`, `high`, `critical`). |
 | `mcp-audit.runOnSave` | `true` | Re-scan automatically on save. |
 | `mcp-audit.runOnOpen` | `true` | Scan when a config file is opened. |
-| `mcp-audit.verdict.online` | `false` | Pass `--online` to `mcp-audit vet` for live registry lookups (requires mcp-audit ≥ 1.1.0). |
+| `mcp-audit.verdict.online` | `false` | Pass `--online` to `credenzo vet` for live registry lookups (requires a release that has the `vet` command). |
 
 ---
 
 ## Severity mapping
 
-| mcp-audit severity | VS Code diagnostic |
+| Credenzo severity | VS Code diagnostic |
 |---|---|
 | CRITICAL | ❌ Error (red squiggle) |
 | HIGH | ❌ Error (red squiggle) |
@@ -142,7 +142,7 @@ Cursor is a VS Code fork. This extension works in Cursor without modification. I
 
 ## Known limitations
 
-- **Line precision:** Squiggles point to the server *key block*, not the exact offending line within it. The mcp-audit CLI does not yet emit per-finding line numbers — a follow-up will improve this once `Finding.line_number` is added to the model.
+- **Line precision:** Squiggles point to the server *key block*, not the exact offending line within it. The Credenzo CLI does not yet emit per-finding line numbers — a follow-up will improve this once `Finding.line_number` is added to the model.
 - **Large files:** Files over 5 MB are skipped (an INFO diagnostic is shown).
 - **Scan timeout:** Scans cancelled after 10 seconds with a warning in the Output channel.
 
@@ -153,21 +153,21 @@ Cursor is a VS Code fork. This extension works in Cursor without modification. I
 The extension is a **thin wrapper** — it does not reimplement any detection logic:
 
 1. Detects MCP config files by file name.
-2. Spawns `mcp-audit scan --path <file> --format json`.
+2. Spawns `credenzo scan --path <file> --format json`.
 3. Parses the JSON `ScanResult` and converts `Finding[]` to `vscode.Diagnostic[]`.
 4. Uses `jsonc-parser` to locate each finding's server key in the document.
 
-All security detection runs in the `mcp-audit` binary (Python). The extension is TypeScript + VS Code API only.
+All security detection runs in the `credenzo` binary (Python). The extension is TypeScript + VS Code API only.
 
 ---
 
 ## Troubleshooting
 
-**"mcp-audit binary not found"**
-Install `mcp-audit` with `pip install mcp-audit`, or set `mcp-audit.binaryPath` in your settings to the full path of the binary. Check `View → Output → mcp-audit` for details.
+**"Credenzo binary not found"**
+Install `credenzo` with `pip install credenzo`, or set `mcp-audit.binaryPath` in your settings to the full path of the binary. Check `View → Output → Credenzo` for details.
 
 **No squiggles appear on open files**
-Make sure `mcp-audit.runOnOpen` is `true`. Run `mcp-audit: Scan current file` from the command palette and check the Output channel for errors. Confirm the file name matches one of the supported names above.
+Make sure `mcp-audit.runOnOpen` is `true`. Run `Credenzo: Scan current file` from the command palette and check the Output channel for errors. Confirm the file name matches one of the supported names above.
 
 **Squiggles are at line 1 instead of the right line**
 This is a known limitation — see above. The finding is still reported correctly; only the underline position is approximate.
@@ -176,20 +176,20 @@ This is a known limitation — see above. The finding is still reported correctl
 
 ## Reporting issues
 
-Please open an issue on the [mcp-audit-vscode issue tracker](https://github.com/mcp-audit/mcp-audit-vscode/issues).
+Please open an issue on the [mcp-audit-vscode issue tracker](https://github.com/adudley78/mcp-audit-vscode/issues).
 
-For false positives or missed findings, please open an issue on the main [mcp-audit repo](https://github.com/mcp-audit/mcp-audit/issues) — those are detection bugs in the CLI, not the extension.
+For false positives or missed findings, please open an issue on the main [Credenzo repo](https://github.com/adudley78/mcp-audit/issues) — those are detection bugs in the CLI, not the extension.
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/mcp-audit/mcp-audit/blob/main/docs/contributing-rules.md) in the main mcp-audit repo for information on contributing detection rules.
+See [CONTRIBUTING.md](https://github.com/adudley78/mcp-audit/blob/main/docs/contributing-rules.md) in the main Credenzo repo for information on contributing detection rules.
 
-For extension bugs and PRs, see the [mcp-audit-vscode repository](https://github.com/mcp-audit/mcp-audit-vscode).
+For extension bugs and PRs, see the [mcp-audit-vscode repository](https://github.com/adudley78/mcp-audit-vscode).
 
 ---
 
 ## License
 
-Apache 2.0 — same as the main [mcp-audit](https://github.com/mcp-audit/mcp-audit) project.
+Apache 2.0 — same as the main [Credenzo](https://github.com/adudley78/mcp-audit) project.

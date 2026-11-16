@@ -1,7 +1,7 @@
 /**
- * Subprocess wrapper for `mcp-audit vet` (requires mcp-audit >= 1.1.0).
+ * Subprocess wrapper for `credenzo vet` (requires credenzo >= 1.1.0).
  *
- * ADR-0002 contract: `mcp-audit vet <name> --format json` is the *only*
+ * ADR-0002 contract: `credenzo vet <name> --format json` is the *only*
  * public interface. Zero detection logic lives in TypeScript — the binary
  * owns all registry lookups, CVE correlations, and typosquat detection.
  *
@@ -12,7 +12,7 @@
  *
  * Batching:
  *   When supportsBatch is true, pass all names in a single invocation:
- *     mcp-audit vet name1 name2 ... --format json
+ *     credenzo vet name1 name2 ... --format json
  *   The binary returns a JSON array. When batch is not supported, call once
  *   per name and expect a single JSON object or single-element array.
  */
@@ -29,7 +29,7 @@ export interface VetOptions {
 }
 
 /**
- * Run `mcp-audit vet --help` synchronously to decide whether the `vet`
+ * Run `credenzo vet --help` synchronously to decide whether the `vet`
  * subcommand exists and whether it accepts multiple names in one call.
  *
  * Never throws — returns { supported: false } on any failure so the
@@ -65,7 +65,7 @@ export function probeVetSupport(binaryPath: string): VetSupportInfo {
 }
 
 /**
- * Run `mcp-audit vet <names...> --format json [--online]`.
+ * Run `credenzo vet <names...> --format json [--online]`.
  *
  * Returns an array of VetResult — one element per name when calling with
  * a single name, or one per name when batch mode is used.
@@ -112,7 +112,7 @@ export function runVet(
 
       // Exit codes 0 (clean) and 1 (findings/warnings) are both success.
       if ((code ?? 0) > 1) {
-        reject(new Error(`mcp-audit vet exited with code ${code}`));
+        reject(new Error(`credenzo vet exited with code ${code}`));
         return;
       }
 

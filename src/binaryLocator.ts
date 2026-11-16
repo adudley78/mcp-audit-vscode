@@ -1,9 +1,13 @@
 /**
- * Auto-detect the mcp-audit binary path.
+ * Auto-detect the Credenzo binary path.
+ *
+ * The command is `credenzo`. `mcp-audit` is the old name of the same command
+ * (releases before 0.33.0 have only that name), so each step looks for
+ * `credenzo` first and for `mcp-audit` second.
  *
  * Resolution order (mirrors the install instructions):
  *  1. `mcp-audit.binaryPath` workspace/user setting (explicit override)
- *  2. `mcp-audit` / `mcp-audit.exe` on PATH  (via `which` / `where`)
+ *  2. `credenzo` or `mcp-audit` on PATH  (via `which` / `where`)
  *  3. Common install directories (platform-specific)
  */
 
@@ -15,27 +19,35 @@ import * as vscode from 'vscode';
 
 const IS_WINDOWS = process.platform === 'win32';
 
+/** Command names, in the order they are tried. */
+export const BINARY_NAMES = ['credenzo', 'mcp-audit'] as const;
+
 /** Common install paths checked after PATH lookup fails. */
 function candidatePaths(): string[] {
   const home = os.homedir();
-  if (IS_WINDOWS) {
-    const localAppData = process.env['LOCALAPPDATA'] ?? '';
-    return [
-      path.join(localAppData, 'Programs', 'mcp-audit', 'mcp-audit.exe'),
-      path.join(home, '.local', 'bin', 'mcp-audit.exe'),
-    ];
+  const out: string[] = [];
+  for (const name of BINARY_NAMES) {
+    if (IS_WINDOWS) {
+      const localAppData = process.env['LOCALAPPDATA'] ?? '';
+      out.push(
+        path.join(localAppData, 'Programs', name, `${name}.exe`),
+        path.join(home, '.local', 'bin', `${name}.exe`)
+      );
+      continue;
+    }
+    out.push(
+      path.join(home, '.local', 'bin', name),
+      `/usr/local/bin/${name}`,
+      path.join(home, '.cargo', 'bin', name),
+      `/opt/homebrew/bin/${name}`,
+      `/usr/local/opt/python/bin/${name}`,
+      `/Library/Frameworks/Python.framework/Versions/3.13/bin/${name}`,
+      `/Library/Frameworks/Python.framework/Versions/3.12/bin/${name}`,
+      `/Library/Frameworks/Python.framework/Versions/3.11/bin/${name}`,
+      `/Library/Frameworks/Python.framework/Versions/3.10/bin/${name}`
+    );
   }
-  return [
-    path.join(home, '.local', 'bin', 'mcp-audit'),
-    '/usr/local/bin/mcp-audit',
-    path.join(home, '.cargo', 'bin', 'mcp-audit'),
-    '/opt/homebrew/bin/mcp-audit',
-    '/usr/local/opt/python/bin/mcp-audit',
-    '/Library/Frameworks/Python.framework/Versions/3.13/bin/mcp-audit',
-    '/Library/Frameworks/Python.framework/Versions/3.12/bin/mcp-audit',
-    '/Library/Frameworks/Python.framework/Versions/3.11/bin/mcp-audit',
-    '/Library/Frameworks/Python.framework/Versions/3.10/bin/mcp-audit',
-  ];
+  return out;
 }
 
 /**
@@ -52,30 +64,33 @@ function isExecutable(binaryPath: string): boolean {
 }
 
 /**
- * Ask the OS where `mcp-audit` lives on PATH.
+ * Ask the OS where the command lives on PATH (`credenzo`, then `mcp-audit`).
  * Uses `spawnSync` with list-form args (no shell interpolation).
  * Returns the trimmed path string, or `undefined` if not found.
  */
 function whichSync(): string | undefined {
   const cmd = IS_WINDOWS ? 'where' : 'which';
-  const binary = IS_WINDOWS ? 'mcp-audit.exe' : 'mcp-audit';
-  try {
-    const result = cp.spawnSync(cmd, [binary], {
-      encoding: 'utf8',
-      timeout: 3_000,
-      windowsHide: true,
-    });
-    if (result.status !== 0 || !result.stdout) return undefined;
-    // `where` on Windows may return multiple matches; take the first line.
-    const first = result.stdout.trim().split(/\r?\n/)[0];
-    return first && isExecutable(first) ? first : undefined;
-  } catch {
-    return undefined;
+  for (const name of BINARY_NAMES) {
+    const binary = IS_WINDOWS ? `${name}.exe` : name;
+    try {
+      const result = cp.spawnSync(cmd, [binary], {
+        encoding: 'utf8',
+        timeout: 3_000,
+        windowsHide: true,
+      });
+      if (result.status !== 0 || !result.stdout) continue;
+      // `where` on Windows may return multiple matches; take the first line.
+      const first = result.stdout.trim().split(/\r?\n/)[0];
+      if (first && isExecutable(first)) return first;
+    } catch {
+      // Try the next name.
+    }
   }
+  return undefined;
 }
 
 /**
- * Locate the mcp-audit binary.
+ * Locate the Credenzo binary.
  *
  * Returns `undefined` when the binary cannot be found so the caller can
  * degrade gracefully (show a one-time notification, suppress further errors).

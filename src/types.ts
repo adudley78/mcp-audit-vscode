@@ -1,5 +1,5 @@
 /**
- * TypeScript mirror of the mcp-audit Python models.
+ * TypeScript mirror of the Credenzo Python models.
  * Keep in sync with src/mcp_audit/models.py in the mcp-audit repo.
  * JSON key names match the serialised output (aliases applied by Pydantic).
  */
@@ -41,11 +41,11 @@ export interface ScanResult {
   errors: string[];
 }
 
-// ── mcp-audit vet (>= 1.1.0) ────────────────────────────────────────────────
+// ── credenzo vet (>= 1.1.0) ────────────────────────────────────────────────
 
 /**
- * Single-server result returned by `mcp-audit vet <name> --format json`.
- * Mirrors the Python VetResult model. Keep in sync with mcp-audit models.py.
+ * Single-server result returned by `credenzo vet <name> --format json`.
+ * Mirrors the Python VetResult model. Keep in sync with Credenzo models.py.
  */
 export interface VetResult {
   /** Server / package name that was looked up. */
@@ -68,7 +68,7 @@ export interface VetResult {
 
 /** Result of feature-detecting the `vet` subcommand on the installed binary. */
 export interface VetSupportInfo {
-  /** True when `mcp-audit vet --help` exits 0 or 1 and mentions "vet". */
+  /** True when `credenzo vet --help` exits 0 or 1 and mentions "vet". */
   supported: boolean;
   /** True when the help text indicates multiple names are accepted at once. */
   supportsBatch: boolean;

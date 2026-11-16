@@ -1,16 +1,16 @@
 /**
- * mcp-audit VS Code extension — entry point.
+ * Credenzo VS Code extension — entry point.
  *
  * Activates automatically when any JSON / JSONC file is opened
  * (activationEvents: ["onLanguage:json", "onLanguage:jsonc"] in package.json).
  *
  * Wire-up:
- *  - Registers a DiagnosticCollection for all mcp-audit findings.
+ *  - Registers a DiagnosticCollection for all Credenzo findings.
  *  - Listens for onDidOpenTextDocument and onDidSaveTextDocument.
  *  - Exposes three command palette commands:
  *      mcp-audit.scanCurrentFile   — manual re-scan
  *      mcp-audit.scanWorkspace     — scan every open MCP config
- *      mcp-audit.fixCurrentFile    — invoke `mcp-audit fix --path <file>`
+ *      mcp-audit.fixCurrentFile    — invoke `credenzo fix --path <file>`
  *  - Maintains a StatusBarItem showing grade + finding count.
  *  - Creates a dedicated OutputChannel for scan output and errors.
  */
@@ -66,7 +66,7 @@ export function isMcpConfigFile(document: vscode.TextDocument): boolean {
 }
 
 function log(message: string): void {
-  outputChannel.appendLine(`[mcp-audit] ${message}`);
+  outputChannel.appendLine(`[credenzo] ${message}`);
 }
 
 /** Show the binary-not-found warning exactly once per session. */
@@ -75,15 +75,15 @@ function warnBinaryNotFound(): void {
   binaryWarningShown = true;
   void vscode.window
     .showWarningMessage(
-      'mcp-audit binary not found. Install it with `pip install mcp-audit` or ' +
-        'download a binary from https://github.com/mcp-audit/mcp-audit/releases.',
+      'Credenzo binary not found. Install it with `pip install credenzo` or ' +
+        'download a binary from https://github.com/adudley78/mcp-audit/releases.',
       'Install instructions'
     )
     .then((choice) => {
       if (choice === 'Install instructions') {
         void vscode.env.openExternal(
           vscode.Uri.parse(
-            'https://github.com/mcp-audit/mcp-audit/blob/main/docs/ide-extension.md'
+            'https://github.com/adudley78/mcp-audit/blob/main/docs/ide-extension.md'
           )
         );
       }
@@ -143,13 +143,13 @@ async function scanDocument(document: vscode.TextDocument): Promise<void> {
     if (msg === 'TIMEOUT') {
       log(`Scan timed out after ${SCAN_TIMEOUT_MS / 1000}s: ${filePath}`);
       void vscode.window.showWarningMessage(
-        `mcp-audit: scan timed out after ${SCAN_TIMEOUT_MS / 1000} seconds for ${path.basename(filePath)}.`
+        `Credenzo: scan timed out after ${SCAN_TIMEOUT_MS / 1000} seconds for ${path.basename(filePath)}.`
       );
       statusBar.hide();
       return;
     }
 
-    // mcp-audit itself reported a config-level error (exit code 2).
+    // Credenzo itself reported a config-level error (exit code 2).
     // This can happen for malformed JSON — show a single diagnostic.
     if (msg.includes('code 2') || msg.toLowerCase().includes('json')) {
       log(`Scan error (likely malformed JSON): ${msg}`);
@@ -175,11 +175,11 @@ async function scanDocument(document: vscode.TextDocument): Promise<void> {
   );
 }
 
-/** Run `mcp-audit fix --path <filePath>` and show output in the channel. */
+/** Run `credenzo fix --path <filePath>` and show output in the channel. */
 async function fixDocument(document: vscode.TextDocument): Promise<void> {
   if (!isMcpConfigFile(document)) {
     void vscode.window.showInformationMessage(
-      'mcp-audit: the current file is not an MCP config file.'
+      'Credenzo: the current file is not an MCP config file.'
     );
     return;
   }
@@ -230,7 +230,7 @@ export function activate(context: vscode.ExtensionContext): void {
   outputChannel = vscode.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
   statusBar = new McpAuditStatusBar();
   verdictProvider = new VerdictProvider((msg) =>
-    outputChannel.appendLine(`[mcp-audit] ${msg}`)
+    outputChannel.appendLine(`[credenzo] ${msg}`)
   );
 
   context.subscriptions.push(
@@ -285,7 +285,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const docs = vscode.workspace.textDocuments.filter(isMcpConfigFile);
       if (docs.length === 0) {
         void vscode.window.showInformationMessage(
-          'mcp-audit: no MCP config files are currently open.'
+          'Credenzo: no MCP config files are currently open.'
         );
         return;
       }

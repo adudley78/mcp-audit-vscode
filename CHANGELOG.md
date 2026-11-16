@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0 — 2026-11-16
+
+### Changed
+
+- **mcp-audit is now Credenzo.** The extension shows the new name: display name, command titles (`Credenzo: Scan current file`), status bar, messages, output channel, and the diagnostic source (`credenzo`, `credenzo-vet`).
+- The extension looks for the `credenzo` command first and for `mcp-audit` (the old name of the same command) second, on PATH and in the common install directories.
+- The install hint says `pip install credenzo`. It said `pip install mcp-audit`, which is a different package.
+- Repository links point to `adudley78/mcp-audit-vscode` and `adudley78/mcp-audit`.
+
+### Not changed
+
+- The extension id (`mcp-audit.mcp-audit-vscode`), the command ids (`mcp-audit.scanCurrentFile`, …) and the settings keys (`mcp-audit.binaryPath`, …). Installed extensions, keybindings and settings continue to work.
+
+
 ## 0.2.0 — 2026-06-14
 
 ### Added

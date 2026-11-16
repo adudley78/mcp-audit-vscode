@@ -1,5 +1,5 @@
 /**
- * Convert mcp-audit `Finding` objects into VS Code `Diagnostic` instances.
+ * Convert Credenzo `Finding` objects into VS Code `Diagnostic` instances.
  */
 
 import * as vscode from 'vscode';
@@ -7,7 +7,7 @@ import { AUTO_FIXABLE_IDS, DIAGNOSTIC_SOURCE } from './constants';
 import { resolveServerRange } from './lineResolver';
 import type { Finding, McpSeverity } from './types';
 
-/** Map mcp-audit severity → vscode.DiagnosticSeverity. */
+/** Map Credenzo severity → vscode.DiagnosticSeverity. */
 export function mapSeverity(severity: McpSeverity): vscode.DiagnosticSeverity {
   switch (severity) {
     case 'CRITICAL':
@@ -35,7 +35,7 @@ function buildMessage(finding: Finding): string {
     finding.cve.length > 0 ? `  \nCVE: ${finding.cve.join(', ')}` : '';
   const cwePart = finding.cwe ? `  \nCWE: ${finding.cwe}` : '';
   const fixHint = AUTO_FIXABLE_IDS.has(finding.id)
-    ? '\n\n> Run `mcp-audit: Fix current file` to apply an automated fix.'
+    ? '\n\n> Run `Credenzo: Fix current file` to apply an automated fix.'
     : '';
 
   return (
@@ -82,7 +82,7 @@ export function makeFileTooLargeDiagnostic(
   const range = document.lineAt(0).range;
   const diag = new vscode.Diagnostic(
     range,
-    'File too large to scan with mcp-audit (limit: 5 MB)',
+    'File too large to scan with Credenzo (limit: 5 MB)',
     vscode.DiagnosticSeverity.Information
   );
   diag.source = DIAGNOSTIC_SOURCE;
@@ -98,7 +98,7 @@ export function makeMalformedJsonDiagnostic(
   const range = document.lineAt(0).range;
   const diag = new vscode.Diagnostic(
     range,
-    'File is not valid JSON — mcp-audit cannot scan this config.',
+    'File is not valid JSON — Credenzo cannot scan this config.',
     vscode.DiagnosticSeverity.Error
   );
   diag.source = DIAGNOSTIC_SOURCE;

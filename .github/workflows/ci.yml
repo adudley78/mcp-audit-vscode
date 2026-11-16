@@ -20,8 +20,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # @vscode/vsce requires Node >= 20 (undici dependency)
-          node-version: '20'
+          # @vscode/test-electron 3.x requires Node >= 22 (it finds the macOS binary that VS Code 1.110 renamed)
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
