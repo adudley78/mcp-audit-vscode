@@ -1,0 +1,116 @@
+name: Publish
+
+# Manual publish to the Microsoft VS Code Marketplace and to Open VSX.
+#
+# The build job has no secret. It lints, tests and packs one .vsix file.
+# Each publish job gets one token and runs no project code: it uploads the
+# .vsix that the build job made.
+#
+# Secrets (repository settings, Secrets and variables, Actions):
+#   VSCE_PAT  Azure DevOps personal access token, scope Marketplace: Manage
+#   OVSX_PAT  Open VSX access token for the namespace in package.json "publisher"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The version in package.json (for example 0.3.0). The run stops if it is different.'
+        required: true
+      target:
+        description: 'Where to publish'
+        type: choice
+        options: [none (build only), marketplace, openvsx, both]
+        default: 'none (build only)'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Lint, test and pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      vsix: ${{ steps.pack.outputs.vsix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Check the version and the branch
+        env:
+          WANT: ${{ inputs.version }}
+          REF: ${{ github.ref }}
+        run: |
+          HAVE=$(node -p "require('./package.json').version")
+          if [ "$HAVE" != "$WANT" ]; then echo "::error::package.json has $HAVE, you typed $WANT"; exit 1; fi
+          if [ "$REF" != "refs/heads/main" ]; then echo "::error::publish from main only"; exit 1; fi
+
+      - run: npm ci
+      - run: npm run lint
+      - run: node esbuild.js --production
+      - run: npm run compile-tests
+      - run: xvfb-run -a npm test
+
+      - name: Pack
+        id: pack
+        run: |
+          npx --no-install vsce package --out extension.vsix
+          echo "vsix=extension.vsix" >> "$GITHUB_OUTPUT"
+          npx --no-install vsce ls | head -50
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: extension.vsix
+          if-no-files-found: error
+          retention-days: 14
+
+  marketplace:
+    name: Publish to the VS Code Marketplace
+    needs: build
+    if: inputs.target == 'marketplace' || inputs.target == 'both'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Publish
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then echo "::error::The secret VSCE_PAT is not set"; exit 1; fi
+          npx --yes @vscode/vsce@2.32.0 publish --packagePath extension.vsix
+
+  openvsx:
+    name: Publish to Open VSX
+    needs: build
+    if: inputs.target == 'openvsx' || inputs.target == 'both'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Publish
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then echo "::error::The secret OVSX_PAT is not set"; exit 1; fi
+          npx --yes ovsx@0.10.1 publish extension.vsix
