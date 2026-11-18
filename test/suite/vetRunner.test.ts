@@ -1,22 +1,13 @@
 /**
- * Unit tests for runVet() and probeVetSupport().
- *
- * Mirrors the style of scanner.test.ts: sinon stubs replace child_process.spawn
- * so no real mcp-audit binary is required.
- *
- * Coverage:
- *   - vet_json_parsing: single-object and array responses
- *   - degrade_path: exit code > 1 rejects; spawn error propagates
- *   - timeout: VET_TIMEOUT rejection
- *   - online flag forwarded as --online arg
- *   - probeVetSupport: supported / unsupported / batch detection
+ * Unit tests for runVet(). A stub replaces child_process.spawn, so no binary
+ * is needed. scripts/contract-test.mjs runs runVet() against the real command.
  */
 
 import * as assert from 'assert';
 import { EventEmitter } from 'events';
 import * as sinon from 'sinon';
 import { runVet } from '../../src/vetRunner';
-import type { VetResult } from '../../src/types';
+import type { LaunchPackage } from '../../src/launchPackage';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -44,230 +35,141 @@ function makeProc(
 
 type SpawnLike = typeof import('child_process').spawn;
 
-const verified: VetResult = {
-  name: 'filesystem',
-  verdict: 'verified',
-  cve_count: 0,
-  cve_ids: [],
-  capabilities: 'Read and write local files',
-  typosquat_suggestion: null,
-  registry_url: 'https://mcp-audit.dev/packages/filesystem',
-  maintainer: 'Anthropic',
-};
+const PKG: LaunchPackage = { ecosystem: 'npm', name: 'mcp-remote', version: null };
+const DOC = JSON.stringify({ schema_version: '1.0.0', package: { name: 'mcp-remote' } });
 
-const cveResult: VetResult = {
-  name: 'evil-server',
-  verdict: 'cve',
-  cve_count: 2,
-  cve_ids: ['CVE-2024-1234', 'CVE-2024-5678'],
-  capabilities: null,
-  typosquat_suggestion: null,
-  registry_url: null,
-  maintainer: null,
-};
-
-const unknownResult: VetResult = {
-  name: 'my-local-server',
-  verdict: 'unknown',
-  cve_count: 0,
-  cve_ids: [],
-  capabilities: null,
-  typosquat_suggestion: null,
-  registry_url: null,
-  maintainer: null,
-};
-
-// ── Tests ──────────────────────────────────────────────────────────────────
+function spawnStub(stdout: string, code: number | null, delayMs = 0): sinon.SinonStub {
+  return sinon.stub().callsFake(() => {
+    const proc = makeProc(stdout, code as number, delayMs);
+    return proc;
+  });
+}
 
 suite('vetRunner — runVet()', () => {
   teardown(() => sinon.restore());
 
-  test('vet_json_parsing: resolves single-object JSON response', async () => {
-    const proc = makeProc(JSON.stringify(verified), 0);
-    const spawnStub = sinon.stub().returns(proc);
-
-    const results = await runVet(
-      '/usr/local/bin/mcp-audit',
-      ['filesystem'],
-      { online: false, spawnFn: spawnStub as unknown as SpawnLike }
-    );
-
-    assert.strictEqual(results.length, 1);
-    assert.strictEqual(results[0].name, 'filesystem');
-    assert.strictEqual(results[0].verdict, 'verified');
-    assert.strictEqual(results[0].cve_count, 0);
-    assert.strictEqual(results[0].maintainer, 'Anthropic');
+  test('resolves with the parsed document on exit code 0', async () => {
+    const spawn = spawnStub(DOC, 0);
+    const doc = await runVet('credenzo', PKG, { online: false, spawnFn: spawn as unknown as SpawnLike });
+    assert.deepStrictEqual(doc, JSON.parse(DOC));
   });
 
-  test('vet_json_parsing: resolves JSON array response (batch)', async () => {
-    const batch = [verified, cveResult, unknownResult];
-    const proc = makeProc(JSON.stringify(batch), 0);
-    const spawnStub = sinon.stub().returns(proc);
-
-    const results = await runVet(
-      '/usr/local/bin/mcp-audit',
-      ['filesystem', 'evil-server', 'my-local-server'],
-      { online: false, spawnFn: spawnStub as unknown as SpawnLike }
-    );
-
-    assert.strictEqual(results.length, 3);
-    assert.strictEqual(results[1].verdict, 'cve');
-    assert.deepStrictEqual(results[1].cve_ids, ['CVE-2024-1234', 'CVE-2024-5678']);
-    assert.strictEqual(results[2].verdict, 'unknown');
+  test('exit code 1 comes with a document too', async () => {
+    const spawn = spawnStub(DOC, 1);
+    const doc = await runVet('credenzo', PKG, { online: false, spawnFn: spawn as unknown as SpawnLike });
+    assert.deepStrictEqual(doc, JSON.parse(DOC));
   });
 
-  test('vet_json_parsing: resolves empty array when stdout is empty', async () => {
-    const proc = makeProc('', 0);
-    const spawnStub = sinon.stub().returns(proc);
-
-    const results = await runVet(
-      '/usr/local/bin/mcp-audit',
-      ['ghost'],
-      { online: false, spawnFn: spawnStub as unknown as SpawnLike }
-    );
-
-    assert.deepStrictEqual(results, []);
-  });
-
-  test('degrade_path: rejects when exit code > 1', async () => {
-    const proc = makeProc('', 2);
-    const spawnStub = sinon.stub().returns(proc);
-
-    await assert.rejects(
-      runVet(
-        '/usr/local/bin/mcp-audit',
-        ['bad'],
-        { online: false, spawnFn: spawnStub as unknown as SpawnLike }
-      ),
-      /code 2/
-    );
-  });
-
-  test('degrade_path: rejects on spawn error', async () => {
-    // Use a proc that never emits 'close' — only 'error' — so the promise
-    // can only reject, not race to a resolve.
-    const proc = new EventEmitter() as ReturnType<typeof makeProc>;
-    proc.stdout = new EventEmitter();
-    proc.stderr = new EventEmitter();
-    proc.kill = sinon.stub();
-    const spawnStub = sinon.stub().returns(proc);
-
-    const promise = runVet(
-      '/usr/local/bin/mcp-audit',
-      ['x'],
-      { online: false, spawnFn: spawnStub as unknown as SpawnLike }
-    );
-    setTimeout(() => proc.emit('error', new Error('ENOENT')), 5);
-
-    await assert.rejects(promise, /ENOENT/);
-  });
-
-  test('degrade_path: rejects on invalid JSON stdout', async () => {
-    const proc = makeProc('{not valid json}', 0);
-    const spawnStub = sinon.stub().returns(proc);
-
-    await assert.rejects(
-      runVet(
-        '/usr/local/bin/mcp-audit',
-        ['x'],
-        { online: false, spawnFn: spawnStub as unknown as SpawnLike }
-      ),
-      /Failed to parse vet output/
-    );
-  });
-
-  test('timeout: rejects with VET_TIMEOUT and kills process', async () => {
-    const proc = makeProc('', 0, 60_000 /* never within test */);
-    const spawnStub = sinon.stub().returns(proc);
-
-    // Manually reject to simulate the timeout without waiting 8 s.
-    let rejectFn!: (e: Error) => void;
-    const promise = new Promise<VetResult[]>((resolve, reject) => {
-      rejectFn = reject;
-      runVet(
-        '/usr/local/bin/mcp-audit',
-        ['x'],
-        { online: false, spawnFn: spawnStub as unknown as SpawnLike }
-      ).then(resolve, reject);
-    });
-    rejectFn(new Error('VET_TIMEOUT'));
-
-    await assert.rejects(promise, (err: Error) => {
-      assert.strictEqual(err.message, 'VET_TIMEOUT');
-      return true;
-    });
-  });
-
-  test('--online flag is added when online: true', async () => {
-    const proc = makeProc(JSON.stringify(verified), 0);
-    const spawnStub = sinon.stub().returns(proc);
-
-    await runVet(
-      '/usr/local/bin/mcp-audit',
-      ['filesystem'],
-      { online: true, spawnFn: spawnStub as unknown as SpawnLike }
-    );
-
-    const [, args] = spawnStub.firstCall.args as [string, string[], unknown];
-    assert.ok(
-      (args as string[]).includes('--online'),
-      'args should contain --online'
-    );
-  });
-
-  test('--online flag is absent when online: false', async () => {
-    const proc = makeProc(JSON.stringify(verified), 0);
-    const spawnStub = sinon.stub().returns(proc);
-
-    await runVet(
-      '/usr/local/bin/mcp-audit',
-      ['filesystem'],
-      { online: false, spawnFn: spawnStub as unknown as SpawnLike }
-    );
-
-    const [, args] = spawnStub.firstCall.args as [string, string[], unknown];
-    assert.ok(
-      !(args as string[]).includes('--online'),
-      'args should not contain --online'
-    );
-  });
-
-  test('a server name that looks like an option stays an argument', async () => {
-    const proc = makeProc('[]', 0);
-    const spawnStub = sinon.stub().returns(proc);
+  test('the arguments: options first, the ecosystem, then -- and one package', async () => {
+    const spawn = spawnStub(DOC, 0);
     await runVet(
       '/bin/credenzo',
-      ['--online', 'filesystem'],
-      { online: false, spawnFn: spawnStub as unknown as SpawnLike }
+      { ecosystem: 'pypi', name: 'mcp-server-fetch', version: '1.2.3' },
+      { online: false, spawnFn: spawn as unknown as SpawnLike }
     );
-    const [, args] = spawnStub.firstCall.args as [string, string[], unknown];
-    assert.deepStrictEqual(args, ['vet', '--format', 'json', '--', '--online', 'filesystem']);
+    assert.strictEqual(spawn.firstCall.args[0], '/bin/credenzo');
+    assert.deepStrictEqual(spawn.firstCall.args[1], [
+      'vet', '--format', 'json', '--ecosystem', 'pypi', '--', 'mcp-server-fetch==1.2.3',
+    ]);
+    assert.strictEqual(spawn.firstCall.args[2].shell, false);
   });
 
-  test('shell: false is always set on spawn options', async () => {
-    const proc = makeProc(JSON.stringify(verified), 0);
-    const spawnStub = sinon.stub().returns(proc);
-
-    await runVet(
-      '/usr/local/bin/mcp-audit',
-      ['filesystem'],
-      { online: false, spawnFn: spawnStub as unknown as SpawnLike }
-    );
-
-    const [, , opts] = spawnStub.firstCall.args as [string, string[], { shell: boolean }];
-    assert.strictEqual(opts.shell, false);
+  test('--online is before --, and only when it is on', async () => {
+    const spawn = spawnStub(DOC, 0);
+    await runVet('credenzo', PKG, { online: true, spawnFn: spawn as unknown as SpawnLike });
+    const args = spawn.firstCall.args[1] as string[];
+    assert.ok(args.indexOf('--online') > 0 && args.indexOf('--online') < args.indexOf('--'));
+    assert.strictEqual(args[args.length - 1], 'mcp-remote');
   });
 
-  test('exit code 1 is treated as success (findings/warnings present)', async () => {
-    const proc = makeProc(JSON.stringify(cveResult), 1);
-    const spawnStub = sinon.stub().returns(proc);
-
-    const results = await runVet(
-      '/usr/local/bin/mcp-audit',
-      ['evil-server'],
-      { online: false, spawnFn: spawnStub as unknown as SpawnLike }
+  test('rejects when the exit code is 2', async () => {
+    const spawn = spawnStub('', 2);
+    await assert.rejects(
+      runVet('credenzo', PKG, { online: false, spawnFn: spawn as unknown as SpawnLike }),
+      /exited with code 2/
     );
+  });
 
-    assert.strictEqual(results[0].verdict, 'cve');
+  test('rejects when a signal stopped the process (no exit code)', async () => {
+    const spawn = spawnStub(DOC.slice(0, 10), null);
+    await assert.rejects(
+      runVet('credenzo', PKG, { online: false, spawnFn: spawn as unknown as SpawnLike }),
+      /exited with code null/
+    );
+  });
+
+  test('rejects when stdout is empty or is not JSON, and does not repeat the output', async () => {
+    for (const out of ['', 'Traceback secret-text']) {
+      const spawn = spawnStub(out, 0);
+      await assert.rejects(
+        runVet('credenzo', PKG, { online: false, spawnFn: spawn as unknown as SpawnLike }),
+        (err: Error) => err.message === 'credenzo vet did not print JSON'
+      );
+    }
+  });
+
+  test('rejects on a spawn error', async () => {
+    const spawn = sinon.stub().callsFake(() => {
+      const proc = makeProc('', 0, 50);
+      setTimeout(() => proc.emit('error', new Error('ENOENT')), 0);
+      return proc;
+    });
+    await assert.rejects(
+      runVet('credenzo', PKG, { online: false, spawnFn: spawn as unknown as SpawnLike }),
+      /ENOENT/
+    );
+  });
+
+  test('a character that two chunks share is read correctly', async () => {
+    const text = JSON.stringify({ schema_version: '1.0.0', note: '0.1.32–0.1.38' });
+    const bytes = Buffer.from(text, 'utf8');
+    const cut = bytes.indexOf(0xe2) + 1; // inside the 3 bytes of the dash
+    const spawn = sinon.stub().callsFake(() => {
+      const proc = makeProc('', 0, 20);
+      setTimeout(() => {
+        proc.stdout.emit('data', bytes.subarray(0, cut));
+        proc.stdout.emit('data', bytes.subarray(cut));
+      }, 0);
+      return proc;
+    });
+    const doc = (await runVet('credenzo', PKG, {
+      online: false,
+      spawnFn: spawn as unknown as SpawnLike,
+    })) as { note: string };
+    assert.strictEqual(doc.note, '0.1.32–0.1.38');
+  });
+
+  test('more than 1 MB of output stops the process and rejects', async () => {
+    let proc: ReturnType<typeof makeProc> | undefined;
+    const spawn = sinon.stub().callsFake(() => {
+      proc = makeProc('', 0, 200);
+      const p = proc;
+      setTimeout(() => {
+        p.stdout.emit('data', Buffer.alloc(700 * 1024, 0x20));
+        p.stdout.emit('data', Buffer.alloc(700 * 1024, 0x20));
+      }, 0);
+      return proc;
+    });
+    await assert.rejects(
+      runVet('credenzo', PKG, { online: false, spawnFn: spawn as unknown as SpawnLike }),
+      /more than 1 MB/
+    );
+    assert.ok(proc);
+    sinon.assert.calledOnce(proc.kill);
+  });
+
+  test('timeout: rejects with VET_TIMEOUT and stops the process', async function () {
+    this.timeout(12_000);
+    let proc: ReturnType<typeof makeProc> | undefined;
+    const spawn = sinon.stub().callsFake(() => {
+      proc = makeProc(DOC, 0, 60_000);
+      return proc;
+    });
+    await assert.rejects(
+      runVet('credenzo', PKG, { online: false, spawnFn: spawn as unknown as SpawnLike }),
+      /VET_TIMEOUT/
+    );
+    assert.ok(proc);
+    sinon.assert.calledOnce(proc.kill);
   });
 });

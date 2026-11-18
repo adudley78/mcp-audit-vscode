@@ -21,16 +21,27 @@ import * as jsonc from 'jsonc-parser';
 import * as vscode from 'vscode';
 import { MCP_JSON_ROOT_KEYS } from './constants';
 
+/** One server entry: its key, the range of the key, and its launch command. */
+export interface ServerEntry {
+  name: string;
+  range: vscode.Range;
+  /** The `command` value as written (not checked). */
+  command?: unknown;
+  /** The `args` value as written (not checked). */
+  args?: unknown;
+}
+
 /**
- * Return every server name + its key range from `mcpServers` / `servers`.
- * Used by VerdictProvider to collect names for `credenzo vet` calls.
+ * Return every server name + its key range + its launch command from
+ * `mcpServers` / `servers`. VerdictProvider finds the package of each server
+ * from `command` and `args`.
  * Returns an empty array if the document has no server entries or is
  * malformed.
  */
 export function resolveAllServers(
   document: vscode.TextDocument
-): Array<{ name: string; range: vscode.Range }> {
-  const results: Array<{ name: string; range: vscode.Range }> = [];
+): ServerEntry[] {
+  const results: ServerEntry[] = [];
   try {
     const text = document.getText();
     const root = jsonc.parseTree(text);
@@ -60,7 +71,15 @@ export function resolveAllServers(
 
         const start = document.positionAt(keyNode.offset);
         const end = document.positionAt(keyNode.offset + keyNode.length);
-        results.push({ name, range: new vscode.Range(start, end) });
+        const valueNode = prop.children[1];
+        const entry: ServerEntry = { name, range: new vscode.Range(start, end) };
+        if (valueNode.type === 'object') {
+          const commandNode = jsonc.findNodeAtLocation(valueNode, ['command']);
+          const argsNode = jsonc.findNodeAtLocation(valueNode, ['args']);
+          if (commandNode) entry.command = jsonc.getNodeValue(commandNode);
+          if (argsNode) entry.args = jsonc.getNodeValue(argsNode);
+        }
+        results.push(entry);
       }
     }
   } catch {

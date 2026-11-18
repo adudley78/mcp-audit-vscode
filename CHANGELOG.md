@@ -9,12 +9,24 @@
 - The install hint says `pip install credenzo`. It said `pip install mcp-audit`, which is a different package.
 - Repository links point to `adudley78/mcp-audit-vscode` and `adudley78/mcp-audit`.
 
+### Fixed
+
+- **Registry verdicts now work with the real command.** Since 0.2.0 the extension sent the server keys of the file to `credenzo vet`, sent them all in one call, and read fields that the command does not print. The command takes one package name, so no badge appeared, and nothing said why. The extension now finds the package that each server installs (`npx`, `bunx`, `pnpx`, `yarn dlx`, `uvx`, `pipx run`), asks about each package one time, and reads the verdict document that the command prints. A server whose package it can not read with certainty gets no badge.
+- **A pinned version is judged.** For `pkg@1.2.3` or `pkg==1.2.3` the badge says how many recorded CVEs affect that version. With no pin, the badge counts only the CVEs that have no fix.
+- **New badges:** a malicious-package record from OSV (Error), and "in registry, not verified".
+- **The extension says when verdicts are off.** If the command has no usable `vet`, or its answer is in a form that the extension can not read, one line goes to the Credenzo output channel.
+- The 0.2.0 notes below said "requires mcp-audit ≥ 1.1.0". That release does not exist. Registry verdicts need Credenzo 0.33.0 or later.
+
+### Tests
+
+- The tests of the verdicts read saved answers of the real command (`test/fixtures/vet`, made by `scripts/make-vet-fixtures.sh`). A new CI job installs Credenzo from PyPI and runs `scripts/contract-test.mjs`: the verdicts, the scan answer, and the package of 31 launch commands compared with Credenzo's own reader.
+
 ### Security
 
 - **A workspace can no longer set the path of the binary.** `mcp-audit.binaryPath` now has machine scope. Before, a `.vscode/settings.json` in a repository that you trust could point the extension at a program in that repository, and the extension started it when you opened an MCP configuration file. `mcp-audit.verdict.online` has machine scope too, so a workspace can not turn network lookups on. If you set this path in workspace settings, move it to your user settings.
 - **The extension says that it does not run in an untrusted workspace.** This was already the default behaviour of VS Code for an extension that says nothing. It is now stated in the manifest.
 - **The verdict hover is not trusted Markdown.** Text from the registry data is escaped, and the link is shown only when it is a plain `https://` URL on `credenzo.io` or `mcp-audit.dev`. A registry entry can not put a command link or an image in the hover.
-- **A server name can not be read as an option.** The extension passes the server names after `--` when it starts `credenzo vet`, and it looks for the command from your home directory, not from the workspace folder.
+- **A package name can not be read as an option.** The extension passes the package after `--` when it starts `credenzo vet`, and it looks for the command from your home directory, not from the workspace folder.
 - The build tools are updated. `npm audit` reported 28 advisories in development dependencies; 12 remain, and none of them has a release that corrects it without a different advisory. The extension itself ships one dependency, `jsonc-parser`.
 - Each GitHub Action in the workflows is pinned to a commit, and the CI token can only read.
 

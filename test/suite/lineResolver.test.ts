@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { resolveServerRange } from '../../src/lineResolver';
+import { resolveAllServers, resolveServerRange } from '../../src/lineResolver';
 
 async function makeDoc(content: string): Promise<vscode.TextDocument> {
   return vscode.workspace.openTextDocument({ content, language: 'json' });
@@ -74,5 +74,40 @@ suite('lineResolver — resolveServerRange()', () => {
     const range = resolveServerRange(doc, 'server');
 
     assert.strictEqual(range.start.line, 0);
+  });
+});
+
+suite('lineResolver — resolveAllServers()', () => {
+  test('gives the key, its range, and command and args as written', async () => {
+    const doc = await makeDoc(
+      `{
+  // a comment
+  "mcpServers": {
+    "files": { "command": "npx", "args": ["-y", "pkg"], },
+    "remote": { "url": "https://example.test/mcp" },
+    "odd": { "command": 7, "args": "text" },
+    "text": "not an object"
+  }
+}`
+    );
+    const servers = resolveAllServers(doc);
+    assert.deepStrictEqual(servers.map((s) => s.name), ['files', 'remote', 'odd', 'text']);
+    assert.strictEqual(servers[0].command, 'npx');
+    assert.deepStrictEqual(servers[0].args, ['-y', 'pkg']);
+    assert.strictEqual(doc.getText(servers[0].range), '"files"');
+    assert.strictEqual(servers[1].command, undefined);
+    assert.strictEqual(servers[1].args, undefined);
+    assert.strictEqual(servers[2].command, 7);
+    assert.strictEqual(servers[2].args, 'text');
+    assert.strictEqual(servers[3].command, undefined);
+  });
+
+  test('reads the "servers" key of VS Code too', async () => {
+    const doc = await makeDoc(JSON.stringify({ servers: { a: { command: 'uvx', args: ['x'] } } }));
+    assert.strictEqual(resolveAllServers(doc)[0].command, 'uvx');
+  });
+
+  test('malformed text gives an empty list', async () => {
+    assert.deepStrictEqual(resolveAllServers(await makeDoc('{{{')), []);
   });
 });

@@ -1,0 +1,602 @@
+[
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "@modelcontextprotocol/server-filesystem",
+   "/tmp"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "@modelcontextprotocol/server-filesystem",
+   "version": null
+  }
+ },
+ {
+  "command": "npx",
+  "args": [
+   "@modelcontextprotocol/server-filesystem"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "@modelcontextprotocol/server-filesystem",
+   "version": null
+  }
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "@modelcontextprotocol/server-filesystem@2025.7.1"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "@modelcontextprotocol/server-filesystem",
+   "version": "2025.7.1"
+  }
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--yes",
+   "mcp-remote@0.1.30",
+   "https://example.test/mcp"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": "0.1.30"
+  }
+ },
+ {
+  "command": "npx",
+  "args": [
+   "mcp-remote@latest"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": null
+  }
+ },
+ {
+  "command": "npx",
+  "args": [
+   "mcp-remote@^0.1.0"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": null
+  }
+ },
+ {
+  "command": "npx",
+  "args": [
+   "mcp-remote@1.0.0-RC1"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": "1.0.0-RC1"
+  }
+ },
+ {
+  "command": "npx",
+  "args": [
+   "MCP-Remote"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": null
+  }
+ },
+ {
+  "command": "npx",
+  "args": [
+   "@Scope/Name@1.2.3"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "@scope/name",
+   "version": "1.2.3"
+  }
+ },
+ {
+  "command": "/usr/local/bin/npx",
+  "args": [
+   "-y",
+   "mcp-remote"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": null
+  }
+ },
+ {
+  "command": "C:\\Program Files\\nodejs\\npx.cmd",
+  "args": [
+   "-y",
+   "mcp-remote"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": null
+  }
+ },
+ {
+  "command": "NPX.CMD",
+  "args": [
+   "mcp-remote"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": null
+  }
+ },
+ {
+  "command": "npx.exe",
+  "args": [
+   "mcp-remote"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": null
+  }
+ },
+ {
+  "command": "bunx",
+  "args": [
+   "mcp-remote"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": null
+  }
+ },
+ {
+  "command": "pnpx",
+  "args": [
+   "mcp-remote"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": null
+  }
+ },
+ {
+  "command": "yarn",
+  "args": [
+   "dlx",
+   "mcp-remote"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": null
+  }
+ },
+ {
+  "command": "yarn",
+  "args": [
+   "run",
+   "mcp-remote"
+  ],
+  "expect": null
+ },
+ {
+  "command": "yarn",
+  "args": [],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "./server.js"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "/opt/server"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "https://example.test/pkg.tgz"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "file:../pkg"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-p",
+   "some-pkg",
+   "some-bin"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--package",
+   "some-pkg",
+   "some-bin"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--package=some-pkg",
+   "some-bin"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-c",
+   "some-bin --flag"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "@scope"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "bad name"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "github:user/repo"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "user/repo"
+  ],
+  "expect": null
+ },
+ {
+  "command": "pnpm",
+  "args": [
+   "dlx",
+   "mcp-remote"
+  ],
+  "expect": null
+ },
+ {
+  "command": "node",
+  "args": [
+   "server.js"
+  ],
+  "expect": null
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "-i",
+   "mcp/fetch"
+  ],
+  "expect": null
+ },
+ {
+  "command": "cmd",
+  "args": [
+   "/c",
+   "npx",
+   "-y",
+   "mcp-remote"
+  ],
+  "expect": null
+ },
+ {
+  "command": "python",
+  "args": [
+   "-m",
+   "mcp_server_fetch"
+  ],
+  "expect": null
+ },
+ {
+  "command": "python3",
+  "args": [
+   "server.py"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp_server.fetch"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "MCP-Server-Fetch"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch==2025.4.7"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": "2025.4.7"
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch@2025.4.7"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": "2025.4.7"
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch@latest"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch>=1.0"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch[extra]==1.0"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--from",
+   "mcp-atlassian==0.11.9",
+   "mcp-atlassian"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-atlassian",
+   "version": "0.11.9"
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--from",
+   "mcp-atlassian",
+   "some-exe"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-atlassian",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--from=mcp-atlassian",
+   "some-exe"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--python",
+   "3.12",
+   "mcp-server-fetch"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--with",
+   "httpx",
+   "mcp-server-fetch"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--from",
+   "git+https://example.test/x.git",
+   "x"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "./local"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "git+https://example.test/x.git"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [],
+  "expect": null
+ },
+ {
+  "command": "/home/u/.local/bin/uvx",
+  "args": [
+   "mcp-server-fetch"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "run",
+   "mcp-server-fetch"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "run",
+   "mcp-server-fetch==1.2.3"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": "1.2.3"
+  }
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "run"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   7
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": "mcp-remote",
+  "expect": null
+ },
+ {
+  "command": null,
+  "args": [
+   "mcp-remote"
+  ],
+  "expect": null
+ },
+ {
+  "command": [
+   "npx"
+  ],
+  "args": [
+   "mcp-remote"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": null,
+  "expect": null
+ }
+]

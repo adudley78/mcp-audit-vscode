@@ -1,25 +1,23 @@
 /**
- * Subprocess wrapper for `credenzo vet` (requires credenzo >= 1.1.0).
+ * Subprocess wrapper for `credenzo vet`.
  *
- * ADR-0002 contract: `credenzo vet <name> --format json` is the *only*
- * public interface. Zero detection logic lives in TypeScript — the binary
- * owns all registry lookups, CVE correlations, and typosquat detection.
+ * `credenzo vet <package> --format json` takes one package and prints one
+ * verdict document. Exit code 0 and exit code 1 both come with a document
+ * (1: an open CVE, a typosquat suspicion or a malicious record). Exit code 2
+ * is an error.
  *
- * Feature detection:
- *   Call probeVetSupport(binaryPath) once per binary path. If the `vet`
- *   subcommand is absent or the binary pre-dates 1.1.0, supported = false
- *   and the caller should degrade silently.
+ * The extension makes no finding of its own: the binary owns the registry
+ * lookup, the CVE match and the typosquat check. `verdictAdapter.ts` reads
+ * the document.
  *
- * Batching:
- *   When supportsBatch is true, pass all names in a single invocation:
- *     credenzo vet name1 name2 ... --format json
- *   The binary returns a JSON array. When batch is not supported, call once
- *   per name and expect a single JSON object or single-element array.
+ * No `vscode` import: the contract test runs this file in plain Node.
  */
 
 import * as cp from 'child_process';
 import { VET_TIMEOUT_MS } from './constants';
-import type { VetResult, VetSupportInfo } from './types';
+import { vetSpec } from './launchPackage';
+import type { LaunchPackage } from './launchPackage';
+import type { VetSupportInfo } from './types';
 
 export interface VetOptions {
   /** Pass --online to the binary (gates live registry lookups). */
@@ -30,7 +28,7 @@ export interface VetOptions {
 
 /**
  * Run `credenzo vet --help` synchronously to decide whether the `vet`
- * subcommand exists and whether it accepts multiple names in one call.
+ * subcommand exists.
  *
  * Never throws — returns { supported: false } on any failure so the
  * caller can degrade gracefully.
@@ -43,32 +41,30 @@ export function probeVetSupport(binaryPath: string): VetSupportInfo {
       windowsHide: true,
     });
 
-    // Null status = process spawn failed; > 1 = hard error (subcommand absent
-    // in older CLIs often exits 2 when an unknown subcommand is given).
+    // Null status = process spawn failed; > 1 = hard error (an unknown
+    // subcommand exits 2).
     if (result.status === null || result.status > 1) {
-      return { supported: false, supportsBatch: false };
+      return { supported: false };
     }
 
     const help = (result.stdout ?? '') + (result.stderr ?? '');
-
-    // The help text of a real vet subcommand will mention "vet" or "NAME".
-    if (!help.toLowerCase().includes('vet')) {
-      return { supported: false, supportsBatch: false };
-    }
-
-    // Batch: look for indication that multiple positional NAME args are valid.
-    const supportsBatch = /\bnames?\b/i.test(help) || /NAME \[NAME/.test(help);
-    return { supported: true, supportsBatch };
+    // The extension passes --ecosystem and --format json. Both must exist.
+    return {
+      supported: help.includes('--ecosystem') && help.includes('--format'),
+    };
   } catch {
-    return { supported: false, supportsBatch: false };
+    return { supported: false };
   }
 }
 
+/** Largest answer that the extension reads (a verdict document is a few KB). */
+const MAX_VET_OUTPUT_BYTES = 1024 * 1024;
+
 /**
- * Run `credenzo vet <names...> --format json [--online]`.
+ * Run `credenzo vet --format json --ecosystem <eco> [--online] -- <package>`.
  *
- * Returns an array of VetResult — one element per name when calling with
- * a single name, or one per name when batch mode is used.
+ * Resolves with the parsed verdict document (not checked: `adaptVerdict`
+ * does that).
  *
  * Rejects with:
  *  - Error('VET_TIMEOUT') after VET_TIMEOUT_MS
@@ -77,65 +73,67 @@ export function probeVetSupport(binaryPath: string): VetSupportInfo {
  */
 export function runVet(
   binaryPath: string,
-  names: string[],
+  pkg: LaunchPackage,
   options: VetOptions
-): Promise<VetResult[]> {
-  return new Promise<VetResult[]>((resolve, reject) => {
+): Promise<unknown> {
+  return new Promise<unknown>((resolve, reject) => {
     const spawnImpl = options.spawnFn ?? cp.spawn;
 
-    // Options first, then `--`: a server name from the open file (for example
-    // "--online") is then an argument and can not be read as an option.
-    const args = ['vet', '--format', 'json'];
+    // Options first, then `--`: the package text comes from the open file and
+    // must not be read as an option.
+    const args = ['vet', '--format', 'json', '--ecosystem', pkg.ecosystem];
     if (options.online) args.push('--online');
-    args.push('--', ...names);
+    args.push('--', vetSpec(pkg));
 
-    const proc = spawnImpl(binaryPath, args, { shell: false });
+    const proc = spawnImpl(binaryPath, args, { shell: false, windowsHide: true });
 
-    let stdout = '';
-    let timedOut = false;
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let done = false;
 
     const timer = setTimeout(() => {
-      timedOut = true;
+      if (done) return;
+      done = true;
       proc.kill('SIGTERM');
       reject(new Error('VET_TIMEOUT'));
     }, VET_TIMEOUT_MS);
 
     proc.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString('utf8');
+      if (done) return;
+      size += chunk.length;
+      if (size > MAX_VET_OUTPUT_BYTES) {
+        done = true;
+        clearTimeout(timer);
+        proc.kill('SIGTERM');
+        reject(new Error('credenzo vet printed more than 1 MB'));
+        return;
+      }
+      chunks.push(chunk);
     });
 
     proc.on('error', (err: Error) => {
+      if (done) return;
+      done = true;
       clearTimeout(timer);
       reject(err);
     });
 
     proc.on('close', (code: number | null) => {
+      if (done) return;
+      done = true;
       clearTimeout(timer);
-      if (timedOut) return;
 
-      // Exit codes 0 (clean) and 1 (findings/warnings) are both success.
-      if ((code ?? 0) > 1) {
+      // Exit codes 0 and 1 both come with a verdict document. A process that
+      // a signal stopped has no exit code and no complete answer.
+      if (code === null || code > 1) {
         reject(new Error(`credenzo vet exited with code ${code}`));
         return;
       }
 
-      if (!stdout.trim()) {
-        resolve([]);
-        return;
-      }
-
       try {
-        const parsed = JSON.parse(stdout) as unknown;
-        // Normalise: single-name call may return an object, batch returns array.
-        resolve(
-          Array.isArray(parsed)
-            ? (parsed as VetResult[])
-            : [parsed as VetResult]
-        );
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown);
       } catch {
-        reject(
-          new Error(`Failed to parse vet output: ${stdout.slice(0, 300)}`)
-        );
+        reject(new Error('credenzo vet did not print JSON'));
       }
     });
   });
