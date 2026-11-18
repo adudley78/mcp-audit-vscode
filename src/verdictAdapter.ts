@@ -6,8 +6,8 @@
  * `capabilities`, `links`. This module only reads those facts and puts them in
  * an order. It makes no finding of its own.
  *
- * Order: malicious, then open CVEs, then typosquat, then verified, then
- * listed, else unknown.
+ * Order: a malicious record for this release, then open CVEs, then typosquat,
+ * then archived, then verified, then listed, else unknown.
  *
  * No `vscode` import: the contract test runs this file in plain Node.
  */
@@ -18,8 +18,9 @@ import type { VetResult } from './types';
 const MAX_IDS = 20;
 const MAX_TEXT = 200;
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+// The bundled data gives the JSON address; the live data gives the page.
 const VERDICT_PAGE_RE =
-  /^https:\/\/(?:mcp-audit\.dev|credenzo\.io)\/v1\/verdicts\/(npm|pypi)\/([a-z0-9][a-z0-9-]{0,200})\.json$/;
+  /^https:\/\/(?:mcp-audit\.dev|credenzo\.io)\/(?:v1\/verdicts\/(npm|pypi)\/([a-z0-9][a-z0-9-]{0,200})\.json|servers\/(npm|pypi)\/([a-z0-9][a-z0-9-]{0,200})\/)$/;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -57,7 +58,13 @@ export function adaptVerdict(raw: unknown, asked: LaunchPackage): VetResult | nu
   // A release that can not read "name@1.2.3" looks up the whole text. Its
   // answer is then about a different name: no verdict.
   if (pkg.name !== asked.name || pkg.ecosystem !== asked.ecosystem) return null;
-  if (!Array.isArray(raw.known_vulnerabilities) || !Array.isArray(raw.malicious)) return null;
+  if (!Array.isArray(raw.known_vulnerabilities)) return null;
+  // A live answer (--online) has no `malicious` key when no record exists.
+  const rawMalicious = raw.malicious === undefined ? [] : raw.malicious;
+  if (!Array.isArray(rawMalicious)) return null;
+  // An item that is not an object can be a CVE that this module can not
+  // read. No verdict is better than a count that is too low.
+  if (!raw.known_vulnerabilities.every(isObject) || !rawMalicious.every(isObject)) return null;
 
   const pinned = typeof pkg.version === 'string';
   if (asked.version !== null && !pinned) return null;
@@ -67,19 +74,30 @@ export function adaptVerdict(raw: unknown, asked: LaunchPackage): VetResult | nu
   // "fixed", or a different word when it can not compare the versions (it
   // exits 1 for that too). With no version, a CVE with no fix is open.
   const open = vulns.filter((v) =>
-    pinned ? v.status === 'affected' : v.fixed_in === null || v.fixed_in === undefined
+    pinned ? v.status === 'affected' : typeof v.fixed_in !== 'string' || v.fixed_in === ''
   );
   const unchecked = pinned
     ? vulns.filter((v) => v.status !== 'affected' && v.status !== 'fixed')
     : [];
   const openIds = ids([...open, ...unchecked], 'cve');
-  const malicious = raw.malicious.filter(isObject);
+  // The command lists each MAL record of the name, for each release. A record
+  // is the verdict only when it covers the newest release (`latest_affected`,
+  // the case for which the command exits 1) or names the pinned version.
+  const malicious = rawMalicious.filter(isObject);
+  const hits = malicious.filter(
+    (m) =>
+      m.latest_affected === true ||
+      (pinned && Array.isArray(m.versions) && m.versions.includes(pkg.version))
+  );
+  const others = malicious.filter((m) => !hits.includes(m));
   const typosquatOf = text(raw.typosquat_of);
+  const archived = registry.archived === true;
 
   let verdict: VetResult['verdict'];
-  if (malicious.length > 0) verdict = 'malicious';
+  if (hits.length > 0) verdict = 'malicious';
   else if (open.length + unchecked.length > 0) verdict = 'cve';
   else if (typosquatOf) verdict = 'typosquat';
+  else if (archived) verdict = 'archived';
   else if (registry.verified === true) verdict = 'verified';
   else if (registry.listed === true) verdict = 'listed';
   else verdict = 'unknown';
@@ -98,15 +116,18 @@ export function adaptVerdict(raw: unknown, asked: LaunchPackage): VetResult | nu
   const links = raw.links;
   if (registry.listed === true && isObject(links) && typeof links.verdict_page === 'string') {
     const m = VERDICT_PAGE_RE.exec(links.verdict_page);
-    if (m) registryUrl = `https://credenzo.io/servers/${m[1]}/${m[2]}/`;
+    if (m) registryUrl = `https://credenzo.io/servers/${m[1] ?? m[3]}/${m[2] ?? m[4]}/`;
   }
 
   return {
     name: asked.name,
     verdict,
-    cve_count: verdict === 'malicious' ? 0 : open.length,
-    cve_ids: verdict === 'malicious' ? ids(malicious, 'id') : openIds,
-    unchecked_cve_count: verdict === 'malicious' ? 0 : unchecked.length,
+    cve_count: open.length,
+    cve_ids: verdict === 'malicious' ? ids(hits, 'id') : openIds,
+    unchecked_cve_count: unchecked.length,
+    other_malicious_ids: ids(others, 'id'),
+    archived,
+    successor: text(registry.successor),
     fixed_cve_count: vulns.length - open.length - unchecked.length,
     pinned,
     capabilities: capabilities || null,

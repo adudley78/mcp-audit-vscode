@@ -44,7 +44,10 @@ const ANSWERS: Record<string, string> = {
   'npm:mcp-remote': 'cve-unpinned',
   'npm:@modelcontextprotocol/server-filesytem': 'typosquat',
   'npm:not-a-real-pkg-zz': 'unknown',
-  'pypi:claude-lite': 'malicious',
+  'pypi:claude-lite': 'malicious-other',
+  'pypi:litellm==1.82.7': 'malicious-pinned',
+  'pypi:litellm==1.83.0': 'malicious-not-this',
+  'npm:@modelcontextprotocol/server-github': 'archived',
 };
 
 function makeResult(overrides: Partial<VetResult> = {}): VetResult {
@@ -55,6 +58,9 @@ function makeResult(overrides: Partial<VetResult> = {}): VetResult {
     unchecked_cve_count: 0,
     cve_ids: [],
     fixed_cve_count: 0,
+    other_malicious_ids: [],
+    archived: false,
+    successor: null,
     pinned: false,
     capabilities: 'file read, file write',
     typosquat_suggestion: null,
@@ -142,7 +148,7 @@ suite('verdictProvider — formatBadge()', () => {
     );
     assert.strictEqual(
       fixedLabel(makeResult({ fixed_cve_count: 1, pinned: true })),
-      '1 recorded CVE, fixed before this version'
+      '1 recorded CVE, fixed in or before this version'
     );
   });
 
@@ -182,6 +188,24 @@ suite('verdictProvider — formatBadge()', () => {
   test('malicious badge shows the record ID', () => {
     const badge = formatBadge(makeResult({ verdict: 'malicious', cve_ids: ['MAL-2026-1'] }));
     assert.ok(badge.text.includes('✖ malicious package record — MAL-2026-1'), badge.text);
+  });
+
+  test('a MAL record for a different release is a note after the verdict', () => {
+    const badge = formatBadge(
+      makeResult({ verdict: 'cve', cve_count: 1, other_malicious_ids: ['MAL-2026-1'] })
+    );
+    assert.ok(badge.text.includes('⚠ 1 known CVE'), badge.text);
+    assert.ok(badge.text.endsWith('malicious record for a different release'), badge.text);
+    assert.ok(!badge.text.includes('✖'), badge.text);
+  });
+
+  test('archived badge is not the check mark, and names the successor', () => {
+    const badge = formatBadge(
+      makeResult({ verdict: 'archived', archived: true, successor: 'github/github-mcp-server' })
+    );
+    assert.ok(badge.text.includes('⚠ archived, not maintained'), badge.text);
+    assert.ok(badge.text.includes('github/github-mcp-server'), badge.text);
+    assert.ok(!badge.text.includes('✓'), badge.text);
   });
 
   test('typosquat badge shows the registry name', () => {
@@ -317,6 +341,22 @@ suite('verdictProvider — formatHover()', () => {
     assert.ok(md.value.includes('MAL-2026-2269'), md.value);
   });
 
+  test('archived and other-release notes are in the hover, escaped', () => {
+    const md = formatHover(
+      makeResult({
+        verdict: 'cve',
+        cve_count: 1,
+        archived: true,
+        successor: '[x](command:y)',
+        other_malicious_ids: ['MAL-2026-1'],
+      })
+    );
+    assert.ok(md.value.includes('*Archived:*'), md.value);
+    assert.ok(!md.value.includes('[x](command:y)'), md.value);
+    assert.ok(md.value.includes('MAL-2026-1'), md.value);
+    assert.ok(md.value.includes('not the newest release'), md.value);
+  });
+
   test('a package name can not add Markdown to the hover', () => {
     const md = formatHover(makeResult({ name: '[x](command:y)' }));
     assert.ok(!md.value.includes('[x](command:y)'), md.value);
@@ -440,7 +480,35 @@ suite('verdictProvider — VerdictProvider with saved real answers', () => {
     assert.ok(diags[0].message.includes('@modelcontextprotocol/server-filesystem'), diags[0].message);
   });
 
-  test('a malicious record gives one Error with the record ID', async () => {
+  test('a MAL record that names the pinned version gives one Error with the record ID', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(config({ llm: { command: 'uvx', args: ['litellm==1.82.7'] } }));
+    provider.trigger(doc);
+    await wait();
+    const diags = verdictDiagnostics(doc);
+    assert.strictEqual(diags.length, 1);
+    assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Error);
+    assert.strictEqual(diags[0].code, 'MAL-2026-2144');
+    assert.ok(diags[0].message.includes('this version'), diags[0].message);
+  });
+
+  test('a MAL record for other releases: the CVE Warning stays, and the record is Information', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(config({ llm: { command: 'uvx', args: ['litellm==1.83.0'] } }));
+    provider.trigger(doc);
+    await wait();
+    const diags = verdictDiagnostics(doc);
+    assert.strictEqual(diags.length, 2);
+    const warning = diags.find((d) => d.severity === vscode.DiagnosticSeverity.Warning);
+    const info = diags.find((d) => d.severity === vscode.DiagnosticSeverity.Information);
+    assert.ok(warning?.message.includes('17 known CVEs affect this version'), warning?.message);
+    assert.ok(info?.message.includes('other releases'), info?.message);
+    assert.ok(!diags.some((d) => d.severity === vscode.DiagnosticSeverity.Error));
+  });
+
+  test('a MAL record that does not cover the newest release gives no Error', async () => {
     const vet = fakeVet();
     provider = makeProvider(vet.run);
     const doc = await makeDoc(config({ lite: { command: 'uvx', args: ['claude-lite'] } }));
@@ -448,8 +516,23 @@ suite('verdictProvider — VerdictProvider with saved real answers', () => {
     await wait();
     const diags = verdictDiagnostics(doc);
     assert.strictEqual(diags.length, 1);
-    assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Error);
+    assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Information);
     assert.strictEqual(diags[0].code, 'MAL-2026-2269');
+  });
+
+  test('an archived package gives one Information diagnostic', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(
+      config({ gh: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'] } })
+    );
+    provider.trigger(doc);
+    await wait();
+    const diags = verdictDiagnostics(doc);
+    assert.strictEqual(diags.length, 1);
+    assert.strictEqual(diags[0].code, 'ARCHIVED');
+    assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Information);
+    assert.ok(diags[0].message.includes('github/github-mcp-server'), diags[0].message);
   });
 
   test('an unknown package gives no diagnostic', async () => {
@@ -495,14 +578,23 @@ suite('verdictProvider — VerdictProvider with saved real answers', () => {
     provider.trigger(doc);
     await wait();
     assert.strictEqual(verdictDiagnostics(doc).length, 1);
-    assert.strictEqual(logs.filter((l) => l.startsWith('vet error')).length, 1);
+    // One line for each different error, and no line twice.
+    assert.strictEqual(logs.filter((l) => l.startsWith('vet error')).length, 2);
+    provider.trigger(doc);
+    await wait();
+    assert.strictEqual(logs.filter((l) => l.startsWith('vet error')).length, 2);
+    assert.strictEqual(vet.calls.length, 5, 'a failed lookup is tried again on the next run');
   });
 
   test('an answer in a form that the extension can not read shows nothing and writes one log line', async () => {
     const logs: string[] = [];
     // The form that the extension read before 0.3.0. The real command never printed it.
+    let calls = 0;
     provider = makeProvider(
-      async () => ({ name: 'mcp-remote', verdict: 'cve', cve_count: 3, cve_ids: [] }),
+      async () => {
+        calls += 1;
+        return { name: 'mcp-remote', verdict: 'cve', cve_count: 3, cve_ids: [] };
+      },
       (m) => logs.push(m)
     );
     const doc = await makeDoc(config({ proxy: { command: 'npx', args: ['mcp-remote'] } }));
@@ -511,6 +603,72 @@ suite('verdictProvider — VerdictProvider with saved real answers', () => {
     assert.strictEqual(verdictDiagnostics(doc).length, 0);
     assert.strictEqual(logs.length, 1);
     assert.ok(logs[0].includes('not in a form'), logs[0]);
+    provider.trigger(doc);
+    await wait();
+    assert.strictEqual(calls, 1, 'an answer that can not be read is not asked for again');
+  });
+
+  test('two documents that start one package at the same time give one lookup', async () => {
+    let calls = 0;
+    provider = makeProvider(async (_b, pkg) => {
+      calls += 1;
+      await wait(200);
+      return fakeVet().run(_b, pkg, { online: false });
+    });
+    const text = config({ proxy: { command: 'npx', args: ['mcp-remote'] } });
+    const a = await makeDoc(text);
+    const b = await makeDoc(text + '\n');
+    provider.trigger(a);
+    provider.trigger(b);
+    await wait(900);
+    assert.strictEqual(calls, 1);
+    assert.strictEqual(verdictDiagnostics(a).length, 1);
+    assert.strictEqual(verdictDiagnostics(b).length, 1);
+  });
+
+  test('at most 4 lookups run at one time', async () => {
+    let running = 0;
+    let most = 0;
+    provider = makeProvider(async () => {
+      running += 1;
+      most = Math.max(most, running);
+      await wait(50);
+      running -= 1;
+      return {};
+    });
+    const servers: Record<string, unknown> = {};
+    for (let i = 0; i < 12; i++) servers[`s${i}`] = { command: 'npx', args: [`pkg-number-${i}`] };
+    provider.trigger(await makeDoc(config(servers)));
+    await wait(900);
+    assert.strictEqual(most, 4);
+  });
+
+  test('a change of the online setting asks again', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(config({ proxy: { command: 'npx', args: ['mcp-remote'] } }));
+    const settings = vscode.workspace.getConfiguration('mcp-audit');
+    try {
+      provider.trigger(doc);
+      await wait();
+      await settings.update('verdict.online', true, vscode.ConfigurationTarget.Global);
+      provider.trigger(doc);
+      await wait();
+      assert.strictEqual(vet.calls.length, 2);
+    } finally {
+      await settings.update('verdict.online', undefined, vscode.ConfigurationTarget.Global);
+    }
+  });
+
+  test('clear() stops a run that waits, so a closed file gets no diagnostic', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(config({ proxy: { command: 'npx', args: ['mcp-remote'] } }));
+    provider.trigger(doc);
+    provider.clear(doc.uri);
+    await wait();
+    assert.strictEqual(vet.calls.length, 0);
+    assert.strictEqual(verdictDiagnostics(doc).length, 0);
   });
 
   test('no binary: no lookup', async () => {

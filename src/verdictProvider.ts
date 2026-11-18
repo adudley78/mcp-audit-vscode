@@ -2,7 +2,7 @@
  * Inline registry verdicts via `credenzo vet`.
  *
  * Behaviour:
- *  - On open/change/save of an MCP config file, find the package that each
+ *  - On open and on save of an MCP config file, find the package that each
  *    server installs (`launchPackage.ts`), call `credenzo vet` one time for
  *    each package (debounced 300 ms, 4 calls at one time), and show an inline
  *    badge and a hover card on the server key.
@@ -15,10 +15,14 @@
  *
  * The extension makes no finding of its own. `verdictAdapter.ts` puts the
  * facts of the verdict document in this order:
- *  - malicious  → Error diagnostic with the MAL record IDs
+ *  - malicious  → Error diagnostic with the MAL record IDs (a record that
+ *                 covers the newest release, or the pinned version)
  *  - cve        → Warning diagnostic with the CVE IDs
  *  - typosquat  → Warning diagnostic with the registry name
+ *  - archived   → Information diagnostic; the badge is not green
  *  - verified / listed / unknown → badge only, no diagnostic
+ *  A MAL record for a different release is an Information diagnostic and a
+ *  note on the badge. It does not replace the verdict.
  */
 
 import * as vscode from 'vscode';
@@ -53,6 +57,13 @@ export interface VerdictBadge {
  * Rendered as the `after` pseudo-element on the server-key decoration.
  */
 export function formatBadge(result: VetResult): VerdictBadge {
+  const badge = baseBadge(result);
+  const others = Array.isArray(result.other_malicious_ids) ? result.other_malicious_ids.length : 0;
+  if (others > 0) badge.text += ' · ⚠ malicious record for a different release';
+  return badge;
+}
+
+function baseBadge(result: VetResult): VerdictBadge {
   const idList = (max: number): string =>
     result.cve_ids.length > 0 ? ` — ${result.cve_ids.slice(0, max).join(', ')}` : '';
 
@@ -73,6 +84,15 @@ export function formatBadge(result: VetResult): VerdictBadge {
         : '';
       return {
         text: `  ⚠ possible typosquat${hint}`,
+        color: new vscode.ThemeColor('editorWarning.foreground'),
+      };
+    }
+    case 'archived': {
+      const successor = result.successor
+        ? ` — the registry names ${shorten(result.successor, 60)} in its place`
+        : '';
+      return {
+        text: `  ⚠ archived, not maintained${successor}`,
         color: new vscode.ThemeColor('editorWarning.foreground'),
       };
     }
@@ -135,7 +155,7 @@ export function fixedLabel(result: VetResult): string {
   if (fixed === 0) return '0 known CVEs';
   const s = fixed !== 1 ? 's' : '';
   return result.pinned
-    ? `${fixed} recorded CVE${s}, fixed before this version`
+    ? `${fixed} recorded CVE${s}, fixed in or before this version`
     : `${fixed} recorded CVE${s}, fixed in a later release`;
 }
 
@@ -204,7 +224,7 @@ export function formatHover(result: VetResult): vscode.MarkdownString {
     case 'malicious':
       md.appendMarkdown(
         `**✖ Malicious package record**${idText ? ` — ${idText}` : ''}\n\n` +
-          'OSV lists a release of this package as malicious. Read the record before you start this server.\n\n'
+          `OSV lists ${result.pinned ? 'this version' : 'the newest release'} of this package as malicious. Read the record before you start this server.\n\n`
       );
       break;
     case 'cve':
@@ -219,6 +239,9 @@ export function formatHover(result: VetResult): vscode.MarkdownString {
       md.appendMarkdown(`**⚠ Possible typosquat**${hint}\n\n`);
       break;
     }
+    case 'archived':
+      md.appendMarkdown('**⚠ Archived, not maintained**\n\n');
+      break;
     case 'verified':
     case 'listed': {
       const maintainer = result.maintainer
@@ -237,6 +260,24 @@ export function formatHover(result: VetResult): vscode.MarkdownString {
   }
 
   md.appendMarkdown(`*Package:* ${escapeMarkdown(result.name)}\n\n`);
+
+  if (result.archived) {
+    const successor = result.successor
+      ? ` The registry names ${escapeMarkdown(result.successor)} in its place.`
+      : '';
+    md.appendMarkdown(
+      `*Archived:* the registry says that this package is not maintained. No security fix will come.${successor}\n\n`
+    );
+  }
+
+  const otherIds = Array.isArray(result.other_malicious_ids)
+    ? result.other_malicious_ids.map(escapeMarkdown).join(', ')
+    : '';
+  if (otherIds) {
+    md.appendMarkdown(
+      `*Malicious record for a different release:* ${otherIds}. OSV lists other releases of this package as malicious, not the ${result.pinned ? 'pinned version' : 'newest release'}.\n\n`
+    );
+  }
 
   if (result.capabilities) {
     md.appendMarkdown(
@@ -315,6 +356,17 @@ export class VerdictProvider implements vscode.Disposable {
   /** vet --help probe result cached per binary path. */
   private readonly _supportCache = new Map<string, VetSupportInfo>();
 
+  /** Packages whose answer the extension could not read (not asked again). */
+  private readonly _noVerdict = new Set<string>();
+
+  /** The binary and the lookup mode that the cache holds answers for. */
+  private _cacheSource = '';
+
+  /** Lookups in progress, so that two runs do not start one package twice. */
+  private readonly _inFlight = new Map<string, Promise<void>>();
+  private _running = 0;
+  private readonly _waiting: Array<() => void> = [];
+
   /** Keys of the messages that the output channel has already. */
   private readonly _logged = new Set<string>();
 
@@ -369,8 +421,13 @@ export class VerdictProvider implements vscode.Disposable {
 
   /** Remove all verdicts for a document (called when the document closes). */
   clear(uri: vscode.Uri): void {
-    this._diagnostics.delete(uri);
     const uriStr = uri.toString();
+    const pending = this._timers.get(uriStr);
+    if (pending) {
+      clearTimeout(pending);
+      this._timers.delete(uriStr);
+    }
+    this._diagnostics.delete(uri);
     for (const editor of vscode.window.visibleTextEditors) {
       if (editor.document.uri.toString() === uriStr) {
         editor.setDecorations(this._decorType, []);
@@ -390,7 +447,11 @@ export class VerdictProvider implements vscode.Disposable {
 
   private async _run(document: vscode.TextDocument): Promise<void> {
     const binary = this._locateBin();
-    if (!binary) return; // No binary: the scan path reports that.
+    if (!binary) {
+      // No binary: the scan path reports that. Old badges must not stay.
+      this.clear(document.uri);
+      return;
+    }
 
     const support = this._getSupport(binary);
     if (!support.supported) {
@@ -398,7 +459,19 @@ export class VerdictProvider implements vscode.Disposable {
         `unsupported:${binary}`,
         'Registry verdicts are off: this command has no usable `vet`. Install Credenzo 0.33.0 or later.'
       );
+      this.clear(document.uri);
       return;
+    }
+
+    const config = vscode.workspace.getConfiguration('mcp-audit');
+    const online = config.get<boolean>('verdict.online', false);
+    // A verdict from a different binary, or from the other lookup mode, is
+    // not the answer for this one.
+    const source = `${online ? 'online' : 'offline'}|${binary}`;
+    if (source !== this._cacheSource) {
+      this._cacheSource = source;
+      this._verdictCache.clear();
+      this._noVerdict.clear();
     }
 
     // One call for each package, not for each server: two servers can start
@@ -408,46 +481,76 @@ export class VerdictProvider implements vscode.Disposable {
       const pkg = launchPackage(server.command, server.args);
       if (!pkg) continue;
       const key = packageKey(pkg);
-      if (!this._verdictCache.has(key)) wanted.set(key, pkg);
+      if (this._verdictCache.has(key) || this._noVerdict.has(key)) continue;
+      wanted.set(key, pkg);
+      if (wanted.size >= MAX_PACKAGES_PER_RUN) break;
     }
 
-    if (wanted.size > 0) {
-      const config = vscode.workspace.getConfiguration('mcp-audit');
-      const online = config.get<boolean>('verdict.online', false);
-      const vetOpts: VetOptions = { online };
-      const queue = [...wanted.entries()].slice(0, MAX_PACKAGES_PER_RUN);
+    await Promise.all(
+      [...wanted.entries()].map(([key, pkg]) => this._lookup(binary, source, key, pkg, { online }))
+    );
 
-      const worker = async (): Promise<void> => {
-        for (;;) {
-          const next = queue.shift();
-          if (!next) return;
-          const [key, pkg] = next;
-          try {
-            const raw = await this._runVet(binary, pkg, vetOpts);
-            const result = adaptVerdict(raw, pkg);
-            if (result) {
-              this._verdictCache.set(key, result);
-            } else {
-              this._logOnce(
-                `shape:${binary}`,
-                'Registry verdicts: the answer of `credenzo vet` is not in a form that this extension can read. Update Credenzo and the extension.'
-              );
-            }
-          } catch (err: unknown) {
-            // One package failed: the others continue.
-            this._logOnce(
-              `error:${binary}`,
-              `vet error: ${err instanceof Error ? err.message : String(err)}`
-            );
-          }
-        }
-      };
-      await Promise.all(
-        Array.from({ length: Math.min(VET_CONCURRENCY, queue.length) }, worker)
-      );
-    }
-
+    if (document.isClosed) return;
     this._applyVerdicts(document);
+  }
+
+  /**
+   * Look one package up. A second request for a package that is in progress
+   * waits for the first. At most VET_CONCURRENCY processes run at one time,
+   * for all documents.
+   */
+  private _lookup(
+    binary: string,
+    source: string,
+    key: string,
+    pkg: LaunchPackage,
+    vetOpts: VetOptions
+  ): Promise<void> {
+    const flightKey = `${source}|${key}`;
+    const existing = this._inFlight.get(flightKey);
+    if (existing) return existing;
+
+    const task = (async (): Promise<void> => {
+      await this._acquire();
+      try {
+        const raw = await this._runVet(binary, pkg, vetOpts);
+        if (source !== this._cacheSource) return; // The setting changed.
+        const result = adaptVerdict(raw, pkg);
+        if (result) {
+          this._verdictCache.set(key, result);
+        } else {
+          // The same answer comes each time: do not ask again in this session.
+          this._noVerdict.add(key);
+          this._logOnce(
+            `shape:${binary}`,
+            'Registry verdicts: the answer of `credenzo vet` is not in a form that this extension can read. Update Credenzo and the extension.'
+          );
+        }
+      } catch (err: unknown) {
+        // One package failed: the others continue. The next save tries again.
+        const message = err instanceof Error ? err.message : String(err);
+        this._logOnce(`error:${binary}:${message}`, `vet error: ${message}`);
+      } finally {
+        this._release();
+        this._inFlight.delete(flightKey);
+      }
+    })();
+    this._inFlight.set(flightKey, task);
+    return task;
+  }
+
+  private _acquire(): Promise<void> {
+    if (this._running < VET_CONCURRENCY) {
+      this._running += 1;
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => this._waiting.push(resolve));
+  }
+
+  private _release(): void {
+    const next = this._waiting.shift();
+    if (next) next();
+    else this._running -= 1;
   }
 
   /** Each server that has a package, with the cache key in place of its name. */
@@ -476,7 +579,7 @@ export class VerdictProvider implements vscode.Disposable {
       if (result.verdict === 'malicious') {
         const diag = new vscode.Diagnostic(
           range,
-          `${result.name}: OSV lists a release of this package as malicious${ids}`,
+          `${result.name}: OSV lists ${result.pinned ? 'this version' : 'the newest release'} of this package as malicious${ids}`,
           vscode.DiagnosticSeverity.Error
         );
         diag.source = VERDICT_DIAGNOSTIC_SOURCE;
@@ -505,6 +608,30 @@ export class VerdictProvider implements vscode.Disposable {
         diagnostics.push(diag);
       }
       // 'verified', 'listed' and 'unknown' emit no diagnostics.
+
+      if (result.archived) {
+        const successor = result.successor
+          ? ` The registry names ${result.successor} in its place.`
+          : '';
+        const diag = new vscode.Diagnostic(
+          range,
+          `${result.name}: archived, not maintained. No security fix will come.${successor}`,
+          vscode.DiagnosticSeverity.Information
+        );
+        diag.source = VERDICT_DIAGNOSTIC_SOURCE;
+        diag.code = 'ARCHIVED';
+        diagnostics.push(diag);
+      }
+      if (result.other_malicious_ids.length > 0) {
+        const diag = new vscode.Diagnostic(
+          range,
+          `${result.name}: OSV lists other releases of this package as malicious (${result.other_malicious_ids.join(', ')}), not the ${result.pinned ? 'pinned version' : 'newest release'}`,
+          vscode.DiagnosticSeverity.Information
+        );
+        diag.source = VERDICT_DIAGNOSTIC_SOURCE;
+        diag.code = result.other_malicious_ids[0];
+        diagnostics.push(diag);
+      }
     }
 
     this._diagnostics.set(document.uri, diagnostics);
@@ -518,7 +645,8 @@ export class VerdictProvider implements vscode.Disposable {
 
   /** Write `message` to the output channel one time for each `key`. */
   private _logOnce(key: string, message: string): void {
-    if (this._logged.has(key)) return;
+    // A limit, because a key can hold the text of an error.
+    if (this._logged.has(key) || this._logged.size >= 50) return;
     this._logged.add(key);
     this.log(message);
   }

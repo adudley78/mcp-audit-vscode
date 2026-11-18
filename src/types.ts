@@ -52,13 +52,21 @@ export interface VetResult {
   /** Package name that the command looked up. */
   name: string;
   /**
-   * malicious: OSV has a MAL record for the package.
+   * malicious: an OSV MAL record covers the newest release, or the pinned version.
    * cve: a recorded CVE affects the pinned version, or has no fix.
    * typosquat: the name is close to a registry name.
+   * archived: the registry says that the package is not maintained.
    * verified / listed: in the registry, verified or not.
    * unknown: not in the registry.
    */
-  verdict: 'malicious' | 'cve' | 'typosquat' | 'verified' | 'listed' | 'unknown';
+  verdict:
+    | 'malicious'
+    | 'cve'
+    | 'typosquat'
+    | 'archived'
+    | 'verified'
+    | 'listed'
+    | 'unknown';
   /** Number of CVEs that affect the pinned version, or that have no fix (no pin). */
   cve_count: number;
   /** Number of CVEs that the command could not compare with the pinned version. */
@@ -67,6 +75,15 @@ export interface VetResult {
   cve_ids: string[];
   /** Number of recorded CVEs that are not open (fixed). */
   fixed_cve_count: number;
+  /**
+   * IDs of MAL records for other releases of the package (not the newest, not
+   * the pinned one). They are a note, not the verdict.
+   */
+  other_malicious_ids: string[];
+  /** True when the registry says that the package is archived. */
+  archived: boolean;
+  /** The package that the registry names in its place, or null. */
+  successor: string | null;
   /** True when the config entry pins an exact version and the command judged it. */
   pinned: boolean;
   /** Declared capabilities as one line, or null. */

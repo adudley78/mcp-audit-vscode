@@ -22,7 +22,11 @@ const npm = (name: string, version: string | null = null): LaunchPackage => ({
   name,
   version,
 });
-const pypi = (name: string): LaunchPackage => ({ ecosystem: 'pypi', name, version: null });
+const pypi = (name: string, version: string | null = null): LaunchPackage => ({
+  ecosystem: 'pypi',
+  name,
+  version,
+});
 
 const FS = '@modelcontextprotocol/server-filesystem';
 
@@ -89,18 +93,72 @@ suite('verdictAdapter — saved real answers', () => {
     assert.strictEqual(r.capabilities, null);
   });
 
-  test('malicious: the MAL record ID is given', () => {
-    const r = adaptVerdict(fixture('malicious'), pypi('claude-lite'));
+  test('a MAL record that names the pinned version is the verdict', () => {
+    const r = adaptVerdict(fixture('malicious-pinned'), pypi('litellm', '1.82.7'));
     assert.ok(r);
     assert.strictEqual(r.verdict, 'malicious');
-    assert.deepStrictEqual(r.cve_ids, ['MAL-2026-2269']);
+    assert.deepStrictEqual(r.cve_ids, ['MAL-2026-2144']);
+    assert.deepStrictEqual(r.other_malicious_ids, []);
+    assert.ok(r.cve_count > 0, 'the CVE count is kept');
+  });
+
+  test('a MAL record for other releases is a note; the CVEs stay the verdict', () => {
+    const r = adaptVerdict(fixture('malicious-not-this'), pypi('litellm', '1.83.0'));
+    assert.ok(r);
+    assert.strictEqual(r.verdict, 'cve');
+    assert.strictEqual(r.cve_count, 17);
+    // The registry field `cve` holds CVE and GHSA IDs. No MAL ID is among them.
+    assert.ok(r.cve_ids.every((id) => /^(CVE|GHSA)-/.test(id)), r.cve_ids.join(' '));
+    assert.deepStrictEqual(r.other_malicious_ids, ['MAL-2026-2144']);
+  });
+
+  test('a MAL record that does not cover the newest release is a note (the command exits 0)', () => {
+    const r = adaptVerdict(fixture('malicious-other'), pypi('claude-lite'));
+    assert.ok(r);
+    assert.strictEqual(r.verdict, 'unknown');
+    assert.deepStrictEqual(r.other_malicious_ids, ['MAL-2026-2269']);
+  });
+
+  test('a MAL record that covers the newest release is the verdict', () => {
+    const doc = fixture('malicious-other');
+    const records = (doc.malicious as Array<Record<string, unknown>>).map((m) => ({
+      ...m,
+      latest_affected: true,
+    }));
+    const r = adaptVerdict({ ...doc, malicious: records }, pypi('claude-lite'));
+    assert.strictEqual(r?.verdict, 'malicious');
+    assert.deepStrictEqual(r?.cve_ids, ['MAL-2026-2269']);
+  });
+
+  test('an archived package is "archived", not "verified"', () => {
+    const r = adaptVerdict(
+      fixture('archived'),
+      npm('@modelcontextprotocol/server-github')
+    );
+    assert.ok(r);
+    assert.strictEqual(r.verdict, 'archived');
+    assert.strictEqual(r.archived, true);
+    assert.strictEqual(r.successor, 'github/github-mcp-server');
+  });
+
+  test('a live answer (--online) has no malicious key and a page link; both are read', () => {
+    const doc = fixture('online-listed');
+    assert.strictEqual('malicious' in doc, false, 'the saved live answer has no malicious key');
+    const r = adaptVerdict(doc, npm('mcp-remote'));
+    assert.ok(r);
+    assert.strictEqual(r.verdict, 'cve');
+    assert.strictEqual(r.registry_url, 'https://credenzo.io/servers/npm/mcp-remote/');
   });
 });
 
 suite('verdictAdapter — order and refusals', () => {
   test('malicious comes before CVEs, CVEs before typosquat, typosquat before verified', () => {
     const base = fixture('cve-unpinned');
-    const withMal = { ...base, malicious: [{ id: 'MAL-2026-1' }], typosquat_of: 'x' };
+    const withMal = {
+      ...base,
+      malicious: [{ id: 'MAL-2026-1', latest_affected: true }],
+      typosquat_of: 'x',
+    };
     assert.strictEqual(adaptVerdict(withMal, npm('mcp-remote'))?.verdict, 'malicious');
     const withTypo = { ...base, typosquat_of: 'x' };
     assert.strictEqual(adaptVerdict(withTypo, npm('mcp-remote'))?.verdict, 'cve');
@@ -108,6 +166,36 @@ suite('verdictAdapter — order and refusals', () => {
     assert.strictEqual(
       adaptVerdict(verifiedTypo, pypi('mcp-server-fetch'))?.verdict,
       'typosquat'
+    );
+  });
+
+  test('archived comes after CVEs and typosquat, and before verified', () => {
+    const archived = fixture('archived');
+    assert.strictEqual(
+      adaptVerdict({ ...archived, typosquat_of: 'x' }, npm('@modelcontextprotocol/server-github'))
+        ?.verdict,
+      'typosquat'
+    );
+    const withCve = { ...archived, known_vulnerabilities: [{ cve: 'CVE-2026-1', fixed_in: null }] };
+    const r = adaptVerdict(withCve, npm('@modelcontextprotocol/server-github'));
+    assert.strictEqual(r?.verdict, 'cve');
+    assert.strictEqual(r?.archived, true, 'the archived fact is kept for the hover');
+  });
+
+  test('an empty fixed_in is "no fix"; an item that is not an object gives no verdict', () => {
+    const base = fixture('verified-pypi');
+    const r = adaptVerdict(
+      { ...base, known_vulnerabilities: [{ cve: 'CVE-2026-1', fixed_in: '' }] },
+      pypi('mcp-server-fetch')
+    );
+    assert.strictEqual(r?.verdict, 'cve');
+    assert.strictEqual(
+      adaptVerdict({ ...base, known_vulnerabilities: ['CVE-2026-1'] }, pypi('mcp-server-fetch')),
+      null
+    );
+    assert.strictEqual(
+      adaptVerdict({ ...base, malicious: ['MAL-2026-1'] }, pypi('mcp-server-fetch')),
+      null
     );
   });
 

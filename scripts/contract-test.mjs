@@ -52,7 +52,8 @@ const VERDICTS = [
   [{ command: 'npx', args: ['mcp-remote@0.1.30'] }, ['cve']],
   [{ command: 'npx', args: ['@modelcontextprotocol/server-filesytem'] }, ['typosquat']],
   [{ command: 'npx', args: ['not-a-real-pkg-zz'] }, ['unknown']],
-  [{ command: 'uvx', args: ['claude-lite'] }, ['malicious']],
+  [{ command: 'uvx', args: ['litellm==1.82.7'] }, ['malicious']],
+  [{ command: 'npx', args: ['@modelcontextprotocol/server-github'] }, ['archived', 'cve']],
 ];
 
 for (const [entry, expected] of VERDICTS) {

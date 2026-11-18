@@ -121,11 +121,7 @@
    "-y",
    "mcp-remote"
   ],
-  "expect": {
-   "ecosystem": "npm",
-   "name": "mcp-remote",
-   "version": null
-  }
+  "expect": null
  },
  {
   "command": "NPX.CMD",
@@ -597,6 +593,214 @@
  {
   "command": "npx",
   "args": null,
+  "expect": null
+ },
+ {
+  "command": "C:\\nodejs\\npx.cmd",
+  "args": [
+   "-y",
+   "mcp-remote"
+  ],
+  "expect": {
+   "ecosystem": "npm",
+   "name": "mcp-remote",
+   "version": null
+  }
+ },
+ {
+  "command": "\ufeffnpx",
+  "args": [
+   "mcp-remote"
+  ],
+  "expect": null
+ },
+ {
+  "command": " npx",
+  "args": [
+   "mcp-remote"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "mcp-remote\u200b"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "mc\u0440-remote"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-git\ufeffx"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--node-options",
+   "x",
+   "foo"
+  ],
+  "expect": null
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--no-install",
+   "mcp-remote"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-p",
+   "3.12",
+   "mcp-server-git"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--index",
+   "https://example.test/simple",
+   "mcp-server-git"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--index-url",
+   "https://example.test/simple",
+   "mcp-server-git"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--from",
+   "a",
+   "--from",
+   "b",
+   "c"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--from"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-q",
+   "mcp-server-fetch"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch",
+   "--from",
+   "other"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch==1!2.0"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch@1.0.0junk"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch@v1.2.3"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch==1.0rc1"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": "1.0rc1"
+  }
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "run",
+   "--spec",
+   "evil",
+   "mcp-server-git"
+  ],
+  "expect": null
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "install",
+   "mcp-server-fetch"
+  ],
+  "expect": null
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "mcp-server-fetch"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch",
+   "-f",
+   "other"
+  ],
   "expect": null
  }
 ]

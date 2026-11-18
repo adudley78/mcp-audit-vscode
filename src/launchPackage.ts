@@ -24,34 +24,32 @@ export interface LaunchPackage {
 const LAUNCHER_SUFFIXES = ['.cmd', '.exe', '.bat', '.ps1'];
 const NPX_LIKE = new Set(['npx', 'bunx', 'pnpx']);
 
-/** npx flags that change which package runs. The module declines on them. */
-const NPX_DECLINE = new Set(['-p', '--package', '-c', '--call']);
+/**
+ * The only npx flags that the module reads past. Each other flag declines:
+ * it can take a value (`--node-options x`) or change which package runs
+ * (`-p`, `--package`, `-c`).
+ */
+const NPX_PLAIN_FLAGS = new Set(['-y', '--yes', '-q', '--quiet']);
 
-/** uvx / pipx flags whose next argument is a value, not a package. */
-const UVX_FLAGS_WITH_VALUE = new Set([
-  '--python',
-  '--with',
-  '--index-url',
-  '--extra-index-url',
-  '--default-index',
-  '--override-index',
-]);
+/** uvx / pipx flags with no value that the module reads past. */
+const UVX_PLAIN_FLAGS = new Set(['-q', '--quiet', '--offline', '--no-cache', '--isolated']);
 
-const PIPX_SUBCOMMANDS = new Set([
-  'run',
-  'install',
-  'inject',
-  'upgrade',
-  'upgrade-all',
-  'uninstall',
-]);
+/**
+ * uvx flags whose next argument is a value. Each other flag declines: `-p`
+ * takes a value, and an index flag means that the public registry name can be
+ * a different package.
+ */
+const UVX_FLAGS_WITH_VALUE = new Set(['--python', '--with']);
 
 const NPM_NAME_RE = /^(@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*$/;
 const NPM_EXACT_VERSION_RE =
   /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const PYPI_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const PYPI_EXACT_VERSION_RE = /^\d+(?:\.\d+)*(?:[a-z0-9.+!-]*[a-z0-9])?$/i;
-const PYPI_NAME_END_RE = /[=<>!~;[@\s]/;
+const PYPI_EXACT_VERSION_RE = /^\d+(?:\.\d+)*(?:(?:a|b|rc|\.post|\.dev)\d+)*$/;
+const PYPI_NAME_END_RE = /[=<>!~;[@]/;
+
+/** Printable ASCII with no space and no control character. Each other text declines. */
+const PLAIN_ASCII_RE = /^[\x21-\x7e]+$/;
 
 const MAX_ARGS = 64;
 const MAX_ARG_LENGTH = 512;
@@ -72,16 +70,16 @@ function launcherBasename(command: string): string {
 function npmPackage(args: string[]): LaunchPackage | null {
   let token: string | null = null;
   for (const arg of args) {
-    if (NPX_DECLINE.has(arg) || arg.startsWith('--package=') || arg.startsWith('--call=')) {
-      return null;
+    if (arg.startsWith('-')) {
+      if (!NPX_PLAIN_FLAGS.has(arg)) return null;
+      continue;
     }
-    if (arg.startsWith('-')) continue;
     // The first argument that is not a flag is what npx runs. A path or a URL
     // is not a registry package.
     token = arg;
     break;
   }
-  if (token === null || token === '') return null;
+  if (token === null || !PLAIN_ASCII_RE.test(token)) return null;
   if (/^(\/|\.|https?:\/\/|file:)/.test(token)) return null;
 
   const lowered = token.toLowerCase();
@@ -103,6 +101,7 @@ function npmPackage(args: string[]): LaunchPackage | null {
 }
 
 function pypiToken(token: string): LaunchPackage | null {
+  if (!PLAIN_ASCII_RE.test(token)) return null;
   const end = token.search(PYPI_NAME_END_RE);
   const rawName = end === -1 ? token : token.slice(0, end);
   const name = rawName.replace(/[-_.]+/g, '-').toLowerCase();
@@ -124,38 +123,49 @@ function pypiToken(token: string): LaunchPackage | null {
 function pypiPackage(launcher: string, args: string[]): LaunchPackage | null {
   let effective = args;
   if (launcher === 'pipx') {
-    if (args.length > 0 && PIPX_SUBCOMMANDS.has(args[0])) effective = args.slice(1);
+    // Only `pipx run <pkg>` starts a package from the registry.
+    if (args.length === 0 || args[0] !== 'run') return null;
+    effective = args.slice(1);
   }
 
-  // `--from <pkg> <executable>` names the package.
+  let fromToken: string | null = null;
+  let positional: string | null = null;
   for (let i = 0; i < effective.length; i++) {
-    if ((effective[i] === '--from' || effective[i] === '-f') && i + 1 < effective.length) {
-      return pypiToken(effective[i + 1]);
-    }
-    if (effective[i].startsWith('--from=')) return null;
-  }
-
-  let skipNext = false;
-  for (const arg of effective) {
-    if (skipNext) {
-      skipNext = false;
+    const arg = effective[i];
+    if (arg === '--from') {
+      // `--from <pkg> <executable>` names the package.
+      if (fromToken !== null || i + 1 >= effective.length) return null;
+      fromToken = effective[i + 1];
+      i += 1;
       continue;
     }
     if (UVX_FLAGS_WITH_VALUE.has(arg)) {
-      skipNext = true;
+      i += 1;
       continue;
     }
-    if (arg.startsWith('-')) continue;
-    if (/^(\/|\.|https?:\/\/|file:|git\+)/.test(arg)) return null;
-    return pypiToken(arg);
+    if (arg.startsWith('-')) {
+      if (!UVX_PLAIN_FLAGS.has(arg)) return null;
+      continue;
+    }
+    // The arguments after the program belong to the server. Credenzo reads
+    // `--from` at each position, so one after the program declines.
+    const after = effective.slice(i + 1);
+    if (after.includes('--from') || after.includes('-f')) return null;
+    positional = arg;
+    break;
   }
-  return null;
+
+  const token = fromToken ?? positional;
+  if (token === null) return null;
+  if (/^(\/|\.|https?:\/\/|file:|git\+)/.test(token)) return null;
+  return pypiToken(token);
 }
 
 /**
  * Give the package that `command` + `args` install, or null when this module
  * can not read the launch with certainty (a `cmd /c` wrapper, `python -m`, a
- * local path, a URL, `npx -p`, a value that is not a string).
+ * local path, a URL, a flag that it does not know, text that is not plain
+ * ASCII, a value that is not a string).
  */
 export function launchPackage(command: unknown, args: unknown): LaunchPackage | null {
   if (typeof command !== 'string' || command.length > MAX_ARG_LENGTH) return null;
@@ -165,6 +175,11 @@ export function launchPackage(command: unknown, args: unknown): LaunchPackage | 
     if (typeof item !== 'string' || item.length > MAX_ARG_LENGTH) return null;
   }
   let rest = list as string[];
+
+  // Text that is not printable ASCII (a space in the command, a zero-width
+  // character, a letter from a different script) declines: two programs can
+  // read such text in two ways. A command path with a space gets no badge.
+  if (!PLAIN_ASCII_RE.test(command)) return null;
 
   let launcher = launcherBasename(command);
   if (launcher === 'yarn') {

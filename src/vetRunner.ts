@@ -131,7 +131,12 @@ export function runVet(
       }
 
       try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown);
+        // With --online the command can print one message before the
+        // document ("Online fetch failed … using bundled registry"). The
+        // document starts at the first line that is "{".
+        const out = Buffer.concat(chunks).toString('utf8');
+        const start = out.startsWith('{') ? 0 : out.search(/^\{\r?$/m);
+        resolve(JSON.parse(start >= 0 ? out.slice(start) : out) as unknown);
       } catch {
         reject(new Error('credenzo vet did not print JSON'));
       }

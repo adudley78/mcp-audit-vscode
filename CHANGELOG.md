@@ -13,13 +13,14 @@
 
 - **Registry verdicts now work with the real command.** Since 0.2.0 the extension sent the server keys of the file to `credenzo vet`, sent them all in one call, and read fields that the command does not print. The command takes one package name, so no badge appeared, and nothing said why. The extension now finds the package that each server installs (`npx`, `bunx`, `pnpx`, `yarn dlx`, `uvx`, `pipx run`), asks about each package one time, and reads the verdict document that the command prints. A server whose package it can not read with certainty gets no badge.
 - **A pinned version is judged.** For `pkg@1.2.3` or `pkg==1.2.3` the badge says how many recorded CVEs affect that version. With no pin, the badge counts only the CVEs that have no fix.
-- **New badges:** a malicious-package record from OSV (Error), and "in registry, not verified".
+- **New badges:** a malicious-package record from OSV for the newest release or the pinned version (Error); a record for a different release (a note, Information); archived (not the green check mark, Information); and "in registry, not verified".
+- **`mcp-audit.verdict.online` works.** The live answer has a different link and can come after one message line. The extension reads both.
 - **The extension says when verdicts are off.** If the command has no usable `vet`, or its answer is in a form that the extension can not read, one line goes to the Credenzo output channel.
 - The 0.2.0 notes below said "requires mcp-audit ≥ 1.1.0". That release does not exist. Registry verdicts need Credenzo 0.33.0 or later.
 
 ### Tests
 
-- The tests of the verdicts read saved answers of the real command (`test/fixtures/vet`, made by `scripts/make-vet-fixtures.sh`). A new CI job installs Credenzo from PyPI and runs `scripts/contract-test.mjs`: the verdicts, the scan answer, and the package of 31 launch commands compared with Credenzo's own reader.
+- The tests of the verdicts read saved answers of the real command (`test/fixtures/vet`, made by `scripts/make-vet-fixtures.sh`). A new CI job installs Credenzo from PyPI and runs `scripts/contract-test.mjs`: the verdicts, the scan answer, and the package of each launch command in `test/fixtures/launch-cases.json` compared with Credenzo's own reader.
 
 ### Security
 

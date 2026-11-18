@@ -64,20 +64,22 @@ The extension finds the package that each server installs when it starts, and as
 | `⚠ 6 known CVEs affect this version — CVE-…` | The entry pins a version, and recorded CVEs affect it. A Warning goes to the Problems panel |
 | `⚠ 1 known CVE with no fix recorded — CVE-…` | The entry pins no version, and a recorded CVE has no fix. Warning |
 | `⚠ possible typosquat — did you mean …?` | The name is close to a registry name. Warning |
-| `✖ malicious package record — MAL-…` | OSV lists a release of this package as malicious. Error |
+| `⚠ archived, not maintained — the registry names … in its place` | The registry says that the package is archived. No security fix will come. Information in the Problems panel |
+| `✖ malicious package record — MAL-…` | An OSV record lists the newest release, or the version that the entry pins, as malicious. Error |
+| `… · ⚠ malicious record for a different release` | An OSV record lists other releases as malicious, not the newest one and not the pinned one. The badge keeps its verdict. Information |
 | `? not in registry — no verdict available` | The registry has no entry. This is not a finding |
 
 The hover shows the package name, the declared capabilities, and a link to the page of the package on [credenzo.io](https://credenzo.io) when it has one.
 
 ### Which servers get a badge
 
-A server gets a badge when its `command` is `npx`, `bunx`, `pnpx`, `yarn dlx`, `uvx` or `pipx run` and the package is a registry name. The version is used when the entry pins an exact one (`pkg@1.2.3`, `pkg==1.2.3`).
+A server gets a badge when its `command` is `npx`, `bunx`, `pnpx`, `yarn dlx`, `uvx` or `pipx run` and the package is a registry name. The version is used when the entry pins an exact one (`pkg@1.2.3`, `pkg==1.2.3`). The recorded IDs can be CVE or GHSA IDs.
 
-A server gets no badge when the extension can not read the package with certainty: a local program (`node server.js`), a URL, `python -m`, a `cmd /c` wrapper, `npx -p`, `docker`. The scan diagnostics still cover these servers.
+A server gets no badge when the extension can not read the package with certainty: a local program (`node server.js`), a URL, `python -m`, a `cmd /c` wrapper, `docker`, a launcher flag that the extension does not know (`npx -p`, `uvx --index-url`), a command path with a space, or text that is not plain ASCII. The scan diagnostics still cover these servers.
 
 ### How it works
 
-The extension starts `credenzo vet --format json --ecosystem <npm|pypi> -- <package>` one time for each package (4 at one time). The command owns the registry lookup, the CVE match and the typosquat check. The extension only reads the answer. Results are kept for the session, and fast saves are debounced (300 ms). Lookups are offline unless you turn `mcp-audit.verdict.online` on.
+The extension starts `credenzo vet --format json --ecosystem <npm|pypi> -- <package>` one time for each package (4 at one time). The command owns the registry lookup, the CVE match and the typosquat check. The extension only reads the answer. Results are kept for the session, and fast saves are debounced (300 ms). Lookups are offline unless you turn `mcp-audit.verdict.online` on. A change of that setting, or of the binary, makes the extension ask again.
 
 ### Requirements, and what you see when they are not met
 

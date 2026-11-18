@@ -4,6 +4,8 @@
  */
 
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as path from 'path';
 import { EventEmitter } from 'events';
 import * as sinon from 'sinon';
 import { runVet } from '../../src/vetRunner';
@@ -106,6 +108,21 @@ suite('vetRunner — runVet()', () => {
         (err: Error) => err.message === 'credenzo vet did not print JSON'
       );
     }
+  });
+
+  test('the saved live output with a message before the document is read', async () => {
+    const raw = fs.readFileSync(
+      path.resolve(__dirname, '../../../test/fixtures/vet/online-fallback.txt'),
+      'utf8'
+    );
+    assert.ok(!raw.startsWith('{'), 'the saved output starts with the message');
+    const spawn = spawnStub(raw, 0);
+    const doc = (await runVet('credenzo', PKG, {
+      online: true,
+      spawnFn: spawn as unknown as SpawnLike,
+    })) as { schema_version: string; package: { name: string } };
+    assert.strictEqual(doc.schema_version, '1.0.0');
+    assert.strictEqual(doc.package.name, 'not-a-real-pkg-zz');
   });
 
   test('rejects on a spawn error', async () => {
