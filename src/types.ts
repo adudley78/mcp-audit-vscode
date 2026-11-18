@@ -41,35 +41,70 @@ export interface ScanResult {
   errors: string[];
 }
 
-// ── credenzo vet (>= 1.1.0) ────────────────────────────────────────────────
+// ── credenzo vet ───────────────────────────────────────────────────────────
 
 /**
- * Single-server result returned by `credenzo vet <name> --format json`.
- * Mirrors the Python VetResult model. Keep in sync with Credenzo models.py.
+ * What the extension shows for one package. `verdictAdapter.ts` makes it from
+ * the answer of `credenzo vet <package> --format json` (schema 1.x). The
+ * command does not give these fields itself.
  */
 export interface VetResult {
-  /** Server / package name that was looked up. */
+  /** Package name that the command looked up. */
   name: string;
-  /** Registry verdict for this package. */
-  verdict: 'verified' | 'cve' | 'typosquat' | 'unknown';
-  /** Total number of known CVEs (0 when verdict is not 'cve'). */
+  /**
+   * malicious: an OSV MAL record names the pinned version or covers each
+   *   release, or (no pin) has a range with no end.
+   * cve: a recorded CVE affects the pinned version, or has no fix.
+   * typosquat: the name is close to a registry name.
+   * archived: the registry says that the package is not maintained.
+   * verified / listed: in the registry, verified or not.
+   * unknown: not in the registry.
+   */
+  verdict:
+    | 'malicious'
+    | 'cve'
+    | 'typosquat'
+    | 'archived'
+    | 'verified'
+    | 'listed'
+    | 'unknown';
+  /** Number of CVEs that affect the pinned version, or that have no fix (no pin). */
   cve_count: number;
-  /** CVE identifiers, e.g. ["CVE-2024-1234"]. */
+  /** Number of CVEs that the command could not compare with the pinned version. */
+  unchecked_cve_count: number;
+  /** IDs of those CVEs, or the MAL record IDs when the verdict is malicious. */
   cve_ids: string[];
-  /** Short human-readable capabilities description, or null if not in registry. */
+  /** Number of recorded CVEs that are not open (fixed). */
+  fixed_cve_count: number;
+  /**
+   * IDs of MAL records that can cover this release, where the document does
+   * not let the extension decide: no pin and a record that names releases, or
+   * a pin and a record with a version range. A Warning, not the verdict.
+   */
+  possible_malicious_ids: string[];
+  /**
+   * IDs of MAL records that name releases, none of them the pinned version.
+   * A note, not the verdict.
+   */
+  other_malicious_ids: string[];
+  /** True when the registry says that the package is archived. */
+  archived: boolean;
+  /** The package that the registry names in its place, or null. */
+  successor: string | null;
+  /** True when the config entry pins an exact version and the command judged it. */
+  pinned: boolean;
+  /** Declared capabilities as one line, or null. */
   capabilities: string | null;
-  /** Likely-intended package name when verdict is 'typosquat', else null. */
+  /** The registry name that this name is close to, else null. */
   typosquat_suggestion: string | null;
-  /** Canonical mcp-audit.dev URL for this package, or null. */
+  /** The page of the package on credenzo.io, or null when it has none. */
   registry_url: string | null;
-  /** Maintainer / publisher name, or null. */
+  /** Maintainer, or null. */
   maintainer: string | null;
 }
 
 /** Result of feature-detecting the `vet` subcommand on the installed binary. */
 export interface VetSupportInfo {
-  /** True when `credenzo vet --help` exits 0 or 1 and mentions "vet". */
+  /** True when `credenzo vet --help` exits 0 or 1 and has --ecosystem and --format. */
   supported: boolean;
-  /** True when the help text indicates multiple names are accepted at once. */
-  supportsBatch: boolean;
 }

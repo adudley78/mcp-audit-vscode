@@ -48,34 +48,43 @@ Open any supported config file. Diagnostics appear automatically within 3 second
 | **Status bar** | `Credenzo: B (3 findings)` — click to open the Problems panel |
 | **Problems panel** | All findings listed with source `credenzo` and finding ID (e.g. `CRED-001`) |
 | **Auto-scan** | Scans on open and on save (both configurable) |
-| **Registry verdicts** | Inline badges and hover cards showing CVE counts, typosquat warnings, and registry status (requires a release that has the `vet` command) |
+| **Registry verdicts** | An inline badge and a hover on each server that starts a registry package: verified or not, recorded CVEs, typosquat suspicion, malicious-package record (needs Credenzo 0.33.0 or later) |
 
 ---
 
-## Registry verdicts (Credenzo ≥ 1.1.0)
+## Registry verdicts
 
-When `credenzo vet` is available, each configured server key gets an inline badge showing its registry standing:
+The extension finds the package that each server installs when it starts, and asks `credenzo vet` about that package. The server key gets an inline badge:
 
 | Badge | Meaning |
 |---|---|
-| `✓ verified · 0 known CVEs (Anthropic)` | Package is in the registry, clean, with maintainer info |
-| `⚠ 2 known CVEs — CVE-2024-1234, CVE-2024-5678` | Known vulnerabilities — Warning diagnostic added |
-| `⚠ possible typosquat — did you mean filesystem?` | Package name looks like a typo — Warning diagnostic added |
-| `? not in registry — no verdict available` | Package not found in registry — hint only, no squiggle |
+| `✓ verified · 0 known CVEs (Anthropic)` | The package is in the Credenzo registry and is verified. No CVE is recorded |
+| `✓ verified · 2 recorded CVEs, fixed in a later release` | CVEs are recorded and each has a fix. The entry pins no version, so the extension does not say which release you run |
+| `• in registry, not verified · 0 known CVEs` | The package is in the registry. Its publisher is not verified |
+| `⚠ 6 known CVEs affect this version — CVE-…` | The entry pins a version, and recorded CVEs affect it. A Warning goes to the Problems panel |
+| `⚠ 1 known CVE with no fix recorded — CVE-…` | The entry pins no version, and a recorded CVE has no fix. Warning |
+| `⚠ possible typosquat — did you mean …?` | The name is close to a registry name. Warning |
+| `⚠ archived, not maintained — the registry names … in its place` | The registry says that the package is archived. No security fix will come. Information in the Problems panel |
+| `✖ malicious package record — MAL-…` | An OSV record lists the version that the entry pins as malicious (it names the version, or it covers each release). With no pin: the record lists each release from one release on, with no end. Error |
+| `… · ⚠ malicious releases on record` | An OSV record exists, and the extension can not decide if it covers the release that starts: the entry pins no version and the record names releases, or the entry pins a version and the record has a range. The badge keeps its verdict. Warning |
+| `… · malicious record for other releases` | The entry pins a version. An OSV record names releases, and the pinned version is not one of them. Information |
+| `? not in registry — no verdict available` | The registry has no entry. This is not a finding |
 
-> **TODO for Adam:** Replace the placeholder below with an actual demo GIF before the 0.2.0 Marketplace release.
+The hover shows the package name, the declared capabilities, and a link to the page of the package on [credenzo.io](https://credenzo.io) when it has one.
 
-![Credenzo verdict badges placeholder — demo GIF needed](verdict-demo-placeholder.png)
+### Which servers get a badge
 
-Hovering over any server key shows the full verdict details: capabilities description, CVE list, and a link to the package's [credenzo.io](https://credenzo.io) page.
+A server gets a badge when its `command` is `npx`, `bunx`, `pnpx`, `yarn dlx`, `uvx` or `pipx run` and the package is a registry name. The version is used when the entry pins an exact one (`pkg@1.2.3`, `pkg==1.2.3`). The recorded IDs can be CVE or GHSA IDs.
+
+A server gets no badge when the extension can not read the package with certainty: a local program (`node server.js`), a URL, `python -m`, a `cmd /c` wrapper, `docker`, a launcher flag that the extension does not know (`npx -p`, `uvx --index-url`), a command path with a space, or text that is not plain ASCII. The scan diagnostics still cover these servers.
 
 ### How it works
 
-The extension shells out to `credenzo vet <name> --format json` — no detection logic lives in TypeScript (ADR-0002). Results are cached per server name for the session; rapid saves are debounced (300 ms) to avoid redundant subprocess calls.
+The extension starts `credenzo vet --format json --ecosystem <npm|pypi> -- <package>` one time for each package (4 at one time). The command owns the registry lookup, the CVE match and the typosquat check. The extension only reads the answer. Results are kept for the session, and fast saves are debounced (300 ms). Lookups are offline unless you turn `mcp-audit.verdict.online` on. After a change of that setting, or of the binary path, the extension asks again at the next open or save of a file.
 
-### Feature detection and graceful degradation
+### Requirements, and what you see when they are not met
 
-The first time an MCP config file is opened, the extension runs `credenzo vet --help`. If the subcommand is absent (binary older than 1.1.0) or fails, the verdict feature is silently disabled — scan diagnostics continue working normally.
+Registry verdicts need Credenzo 0.33.0 or later. CI tests the extension against the newest release on PyPI. If the command has no usable `vet`, or its answer is in a form that the extension can not read, the extension shows no badge and writes one line to the **Credenzo** output channel. The scan diagnostics continue to work.
 
 ### Verdict settings
 
@@ -118,7 +127,7 @@ Open the command palette (`Cmd/Ctrl+Shift+P`) and search for **Credenzo**:
 | `mcp-audit.severityThreshold` | `"info"` | Minimum severity to report (`info`, `low`, `medium`, `high`, `critical`). |
 | `mcp-audit.runOnSave` | `true` | Re-scan automatically on save. |
 | `mcp-audit.runOnOpen` | `true` | Scan when a config file is opened. |
-| `mcp-audit.verdict.online` | `false` | Pass `--online` to `credenzo vet` for live registry lookups (requires a release that has the `vet` command). |
+| `mcp-audit.verdict.online` | `false` | Pass `--online` to `credenzo vet` for live registry lookups. |
 
 ---
 

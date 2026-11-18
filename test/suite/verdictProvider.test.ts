@@ -1,42 +1,73 @@
 /**
- * Unit / integration tests for the VerdictProvider and its pure helpers.
+ * Tests for the VerdictProvider and its formatting helpers.
  *
- * Coverage:
- *   - vet_json_parsing: formatBadge maps every verdict type correctly
- *   - decoration_mapping: buildDecorationOptions produces correct after-text
- *   - unknown_path: 'unknown' verdict emits no diagnostic
- *   - degrade_path: supported=false → runVet never called
- *   - degrade_path: binary missing → runVet never called
- *   - debounce_cache: rapid triggers → runVet called once per unique server
- *   - cache: second trigger with same server → runVet not called again
+ * The provider tests give the provider the saved real answers of
+ * `credenzo vet --format json` (test/fixtures/vet, made by
+ * scripts/make-vet-fixtures.sh), so they see the form that the real command
+ * prints. scripts/contract-test.mjs runs the same path against the installed
+ * command.
  */
 
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
 import {
   formatBadge,
   formatHover,
+  cveLabel,
+  fixedLabel,
+  maliciousText,
+  possibleText,
   escapeMarkdown,
   isPlainHttpsUrl,
   isRegistryUrl,
   buildDecorationOptions,
   VerdictProvider,
 } from '../../src/verdictProvider';
+import type { LaunchPackage } from '../../src/launchPackage';
 import type { VetResult } from '../../src/types';
 import type { VetOptions } from '../../src/vetRunner';
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
 
+const FIXTURES = path.resolve(__dirname, '../../../test/fixtures/vet');
+
+function fixture(name: string): unknown {
+  return JSON.parse(fs.readFileSync(path.join(FIXTURES, `${name}.json`), 'utf8'));
+}
+
+/** The saved answer for each package that a test config starts. */
+const ANSWERS: Record<string, string> = {
+  'npm:@modelcontextprotocol/server-filesystem': 'verified-unpinned',
+  'pypi:mcp-server-fetch': 'verified-pypi',
+  'npm:mcp-remote@0.1.30': 'cve-pinned',
+  'npm:mcp-remote': 'cve-unpinned',
+  'npm:@modelcontextprotocol/server-filesytem': 'typosquat',
+  'npm:not-a-real-pkg-zz': 'unknown',
+  'pypi:claude-lite': 'malicious-other',
+  'pypi:litellm==1.82.7': 'malicious-pinned',
+  'pypi:litellm==1.83.0': 'malicious-not-this',
+  'npm:@modelcontextprotocol/server-github': 'archived',
+};
+
 function makeResult(overrides: Partial<VetResult> = {}): VetResult {
   return {
-    name: 'filesystem',
+    name: '@modelcontextprotocol/server-filesystem',
     verdict: 'verified',
     cve_count: 0,
+    unchecked_cve_count: 0,
     cve_ids: [],
-    capabilities: 'Read and write local files',
+    fixed_cve_count: 0,
+    possible_malicious_ids: [],
+    other_malicious_ids: [],
+    archived: false,
+    successor: null,
+    pinned: false,
+    capabilities: 'file read, file write',
     typosquat_suggestion: null,
-    registry_url: 'https://mcp-audit.dev/packages/filesystem',
+    registry_url: 'https://credenzo.io/servers/npm/x/',
     maintainer: 'Anthropic',
     ...overrides,
   };
@@ -46,60 +77,172 @@ async function makeDoc(content: string): Promise<vscode.TextDocument> {
   return vscode.workspace.openTextDocument({ content, language: 'json' });
 }
 
+function config(servers: Record<string, unknown>): string {
+  return JSON.stringify({ mcpServers: servers }, null, 2);
+}
+
+const wait = (ms = 500): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** A fake `runVet` that answers from the saved files and records its calls. */
+function fakeVet(): {
+  calls: LaunchPackage[];
+  run: (b: string, pkg: LaunchPackage, o: VetOptions) => Promise<unknown>;
+} {
+  const calls: LaunchPackage[] = [];
+  return {
+    calls,
+    run: async (_b, pkg) => {
+      calls.push(pkg);
+      const spec =
+        pkg.version === null
+          ? pkg.name
+          : pkg.ecosystem === 'npm'
+            ? `${pkg.name}@${pkg.version}`
+            : `${pkg.name}==${pkg.version}`;
+      const name = ANSWERS[`${pkg.ecosystem}:${spec}`];
+      if (!name) throw new Error(`no saved answer for ${spec}`);
+      return fixture(name);
+    },
+  };
+}
+
+function makeProvider(
+  run: (b: string, pkg: LaunchPackage, o: VetOptions) => Promise<unknown>,
+  log: (m: string) => void = () => { /* noop */ }
+): VerdictProvider {
+  return new VerdictProvider(log, {
+    runVet: run,
+    probeVetSupport: () => ({ supported: true }),
+    locateBinary: () => '/usr/local/bin/credenzo',
+  });
+}
+
+function verdictDiagnostics(doc: vscode.TextDocument): vscode.Diagnostic[] {
+  return vscode.languages
+    .getDiagnostics(doc.uri)
+    .filter((d) => d.source === 'credenzo-vet');
+}
+
 // ── formatBadge ────────────────────────────────────────────────────────────
 
 suite('verdictProvider — formatBadge()', () => {
-  test('decoration_mapping: verified with 0 CVEs shows checkmark', () => {
+  test('verified with no CVE shows the check mark and the maintainer', () => {
     const badge = formatBadge(makeResult());
-    assert.ok(badge.text.includes('✓ verified'), `text: ${badge.text}`);
-    assert.ok(badge.text.includes('0 known CVEs'), `text: ${badge.text}`);
-    assert.ok(badge.text.includes('Anthropic'), `text: ${badge.text}`);
+    assert.ok(badge.text.includes('✓ verified'), badge.text);
+    assert.ok(badge.text.includes('0 known CVEs'), badge.text);
+    assert.ok(badge.text.includes('Anthropic'), badge.text);
   });
 
-  test('decoration_mapping: verified without maintainer omits parenthetical', () => {
+  test('verified without maintainer has no parentheses', () => {
     const badge = formatBadge(makeResult({ maintainer: null }));
-    assert.ok(badge.text.includes('✓ verified'));
-    assert.ok(!badge.text.includes('('), `should not have parens: ${badge.text}`);
+    assert.ok(!badge.text.includes('('), badge.text);
   });
 
-  test('vet_json_parsing: cve verdict shows warning and CVE IDs', () => {
+  test('a long maintainer text is cut', () => {
+    const badge = formatBadge(makeResult({ maintainer: 'x'.repeat(100) }));
+    assert.ok(badge.text.length < 100, badge.text);
+    assert.ok(badge.text.includes('…'), badge.text);
+  });
+
+  test('fixed CVEs of a package with no pin are not called fixed for the user', () => {
+    assert.strictEqual(
+      fixedLabel(makeResult({ fixed_cve_count: 2 })),
+      '2 recorded CVEs, fixed in a later release'
+    );
+    assert.strictEqual(
+      fixedLabel(makeResult({ fixed_cve_count: 1, pinned: true })),
+      '1 recorded CVE, fixed in or before this version'
+    );
+  });
+
+  test('cve label: no pin, pin, and a version that could not be compared', () => {
+    assert.strictEqual(
+      cveLabel(makeResult({ verdict: 'cve', cve_count: 1 })),
+      '1 known CVE with no fix recorded'
+    );
+    assert.strictEqual(
+      cveLabel(makeResult({ verdict: 'cve', cve_count: 2, pinned: true })),
+      '2 known CVEs affect this version'
+    );
+    assert.strictEqual(
+      cveLabel(makeResult({ verdict: 'cve', cve_count: 1, pinned: true })),
+      '1 known CVE affects this version'
+    );
+    assert.strictEqual(
+      cveLabel(makeResult({ verdict: 'cve', unchecked_cve_count: 1, pinned: true })),
+      '1 known CVE: the version could not be compared'
+    );
+  });
+
+  test('cve badge shows the warning sign and at most three IDs', () => {
     const badge = formatBadge(
       makeResult({
         verdict: 'cve',
-        cve_count: 2,
-        cve_ids: ['CVE-2024-1111', 'CVE-2024-2222'],
+        cve_count: 4,
+        pinned: true,
+        cve_ids: ['CVE-2024-1', 'CVE-2024-2', 'CVE-2024-3', 'CVE-2024-4'],
       })
     );
-    assert.ok(badge.text.includes('⚠'), `text: ${badge.text}`);
-    assert.ok(badge.text.includes('2 known CVEs'), `text: ${badge.text}`);
-    assert.ok(badge.text.includes('CVE-2024-1111'), `text: ${badge.text}`);
+    assert.ok(badge.text.includes('⚠ 4 known CVEs affect this version'), badge.text);
+    assert.ok(badge.text.includes('CVE-2024-3'), badge.text);
+    assert.ok(!badge.text.includes('CVE-2024-4'), badge.text);
   });
 
-  test('vet_json_parsing: cve with singular count uses singular form', () => {
-    const badge = formatBadge(
-      makeResult({ verdict: 'cve', cve_count: 1, cve_ids: ['CVE-2024-9999'] })
+  test('malicious badge shows the record ID', () => {
+    const badge = formatBadge(makeResult({ verdict: 'malicious', cve_ids: ['MAL-2026-1'] }));
+    assert.ok(badge.text.includes('✖ malicious package record — MAL-2026-1'), badge.text);
+  });
+
+  test('a MAL record that is not the verdict is a note after the verdict', () => {
+    const possible = formatBadge(
+      makeResult({ verdict: 'cve', cve_count: 1, possible_malicious_ids: ['MAL-2026-1'] })
     );
-    assert.ok(badge.text.includes('1 known CVE'), `text: ${badge.text}`);
-    assert.ok(!badge.text.includes('CVEs'), `text: ${badge.text}`);
+    assert.ok(possible.text.includes('⚠ 1 known CVE'), possible.text);
+    assert.ok(possible.text.endsWith('· ⚠ malicious releases on record'), possible.text);
+    assert.ok(!possible.text.includes('✖'), possible.text);
+    const other = formatBadge(makeResult({ other_malicious_ids: ['MAL-2026-1'] }));
+    assert.ok(other.text.endsWith('· malicious record for other releases'), other.text);
   });
 
-  test('decoration_mapping: typosquat shows warning and suggestion', () => {
+  test('the sentences about a MAL record claim only what the record says', () => {
+    assert.ok(maliciousText(makeResult({ pinned: true })).includes('lists this version'));
+    assert.ok(maliciousText(makeResult()).includes('with no end'));
+    assert.ok(maliciousText(makeResult()).includes('pins no version'));
+    assert.ok(!maliciousText(makeResult()).includes('newest'));
+    assert.ok(possibleText(makeResult({ pinned: true })).includes('did not compare'));
+    const noPin = possibleText(makeResult());
+    assert.ok(noPin.includes('pins no version'), noPin);
+    assert.ok(!noPin.includes('not the newest'), noPin);
+  });
+
+  test('archived badge is not the check mark, and names the successor', () => {
     const badge = formatBadge(
-      makeResult({
-        verdict: 'typosquat',
-        typosquat_suggestion: 'real-filesystem',
-      })
+      makeResult({ verdict: 'archived', archived: true, successor: 'github/github-mcp-server' })
     );
-    assert.ok(badge.text.includes('⚠'), `text: ${badge.text}`);
-    assert.ok(badge.text.includes('typosquat'), `text: ${badge.text}`);
-    assert.ok(badge.text.includes('real-filesystem'), `text: ${badge.text}`);
+    assert.ok(badge.text.includes('⚠ archived, not maintained'), badge.text);
+    assert.ok(badge.text.includes('github/github-mcp-server'), badge.text);
+    assert.ok(!badge.text.includes('✓'), badge.text);
   });
 
-  test('unknown_path: unknown verdict shows question mark, no ⚠', () => {
+  test('typosquat badge shows the registry name', () => {
+    const badge = formatBadge(
+      makeResult({ verdict: 'typosquat', typosquat_suggestion: 'real-filesystem' })
+    );
+    assert.ok(badge.text.includes('⚠ possible typosquat'), badge.text);
+    assert.ok(badge.text.includes('real-filesystem'), badge.text);
+  });
+
+  test('listed and not verified does not show the check mark', () => {
+    const badge = formatBadge(makeResult({ verdict: 'listed' }));
+    assert.ok(badge.text.includes('in registry, not verified'), badge.text);
+    assert.ok(!badge.text.includes('✓'), badge.text);
+  });
+
+  test('unknown shows the question mark only', () => {
     const badge = formatBadge(makeResult({ verdict: 'unknown' }));
-    assert.ok(badge.text.includes('?'), `text: ${badge.text}`);
-    assert.ok(!badge.text.includes('⚠'), `text: ${badge.text}`);
-    assert.ok(!badge.text.includes('✓'), `text: ${badge.text}`);
+    assert.ok(badge.text.includes('?'), badge.text);
+    assert.ok(!badge.text.includes('⚠'), badge.text);
+    assert.ok(!badge.text.includes('✓'), badge.text);
   });
 });
 
@@ -111,7 +254,8 @@ suite('verdictProvider — formatHover()', () => {
     const value = md.value;
     assert.ok(value.includes('✓ verified'), value);
     assert.ok(value.includes('Capabilities:'), value);
-    assert.ok(value.includes('mcp-audit.dev'), value);
+    assert.ok(value.includes('(https://credenzo.io/servers/npm/x/)'), value);
+    assert.ok(value.includes('Package:'), value);
   });
 
   test('cve hover includes CVE IDs', () => {
@@ -129,7 +273,7 @@ suite('verdictProvider — formatHover()', () => {
     const md = formatHover(makeResult({ verdict: 'unknown', capabilities: null, registry_url: null }));
     assert.ok(md.value.includes('Not in registry'), md.value);
     assert.ok(!md.value.includes('Capabilities:'), md.value);
-    assert.ok(!md.value.includes('mcp-audit.dev'), md.value);
+    assert.ok(!md.value.includes('View the registry entry'), md.value);
   });
 
   test('hover is not trusted, so a command link can not run', () => {
@@ -202,7 +346,38 @@ suite('verdictProvider — formatHover()', () => {
       makeResult({ verdict: 'cve', cve_count: '[x](command:y)' as unknown as number, cve_ids: [] })
     );
     assert.ok(!md.value.includes('command:y'), md.value);
-    assert.ok(md.value.includes('0 known CVEs'), md.value);
+    assert.ok(md.value.includes('0 known CVEs with no fix recorded'), md.value);
+  });
+
+  test('malicious hover gives the record ID and no link text from the data', () => {
+    const md = formatHover(
+      makeResult({ verdict: 'malicious', cve_ids: ['MAL-2026-2269'], registry_url: null })
+    );
+    assert.ok(md.value.includes('Malicious package record'), md.value);
+    assert.ok(md.value.includes('MAL-2026-2269'), md.value);
+  });
+
+  test('archived and other-release notes are in the hover, escaped', () => {
+    const md = formatHover(
+      makeResult({
+        verdict: 'cve',
+        cve_count: 1,
+        archived: true,
+        successor: '[x](command:y)',
+        other_malicious_ids: ['MAL-2026-1'],
+        possible_malicious_ids: ['MAL-2026-2'],
+      })
+    );
+    assert.ok(md.value.includes('*Archived:*'), md.value);
+    assert.ok(!md.value.includes('[x](command:y)'), md.value);
+    assert.ok(md.value.includes('MAL-2026-1'), md.value);
+    assert.ok(md.value.includes('MAL-2026-2'), md.value);
+    assert.ok(md.value.includes('pins no version'), md.value);
+  });
+
+  test('a package name can not add Markdown to the hover', () => {
+    const md = formatHover(makeResult({ name: '[x](command:y)' }));
+    assert.ok(!md.value.includes('[x](command:y)'), md.value);
   });
 
   test('escapeMarkdown keeps a CVE ID readable', () => {
@@ -221,46 +396,34 @@ suite('verdictProvider — formatHover()', () => {
 // ── buildDecorationOptions ─────────────────────────────────────────────────
 
 suite('verdictProvider — buildDecorationOptions()', () => {
-  test('decoration_mapping: returns one option per cached server', async () => {
-    const doc = await makeDoc(
-      JSON.stringify({
-        mcpServers: {
-          filesystem: { command: 'node', args: [] },
-          fetch: { command: 'uvx', args: [] },
-        },
-      })
-    );
-    const range = doc.lineAt(0).range;
-    const servers = [
-      { name: 'filesystem', range },
-      { name: 'fetch', range },
-      { name: 'uncached-server', range },
-    ];
+  test('one option for each cached key; a key with no result is skipped', () => {
+    const range = new vscode.Range(0, 0, 0, 10);
     const cache = new Map<string, VetResult>([
-      ['filesystem', makeResult()],
-      ['fetch', makeResult({ name: 'fetch', verdict: 'unknown' })],
+      ['npm:a', makeResult()],
+      ['npm:b', makeResult({ verdict: 'unknown' })],
     ]);
-
-    const opts = buildDecorationOptions(servers, cache);
-
-    assert.strictEqual(opts.length, 2, 'uncached server should be skipped');
-    assert.ok(opts[0].renderOptions?.after?.contentText?.includes('✓'), 'first opt: verified');
-    assert.ok(opts[1].renderOptions?.after?.contentText?.includes('?'), 'second opt: unknown');
+    const opts = buildDecorationOptions(
+      [
+        { name: 'npm:a', range },
+        { name: 'npm:b', range },
+        { name: 'npm:c', range },
+      ],
+      cache
+    );
+    assert.strictEqual(opts.length, 2);
+    assert.ok(opts[0].renderOptions?.after?.contentText?.includes('✓'));
+    assert.ok(opts[1].renderOptions?.after?.contentText?.includes('?'));
   });
 
-  test('decoration_mapping: empty cache produces empty array', () => {
+  test('empty cache gives no option', () => {
     const range = new vscode.Range(0, 0, 0, 10);
-    const opts = buildDecorationOptions(
-      [{ name: 'x', range }],
-      new Map()
-    );
-    assert.strictEqual(opts.length, 0);
+    assert.strictEqual(buildDecorationOptions([{ name: 'x', range }], new Map()).length, 0);
   });
 });
 
 // ── VerdictProvider class ──────────────────────────────────────────────────
 
-suite('verdictProvider — VerdictProvider', () => {
+suite('verdictProvider — VerdictProvider with saved real answers', () => {
   let provider: VerdictProvider;
 
   teardown(() => {
@@ -268,243 +431,303 @@ suite('verdictProvider — VerdictProvider', () => {
     sinon.restore();
   });
 
-  test('degrade_path: runVet never called when binary is missing', async () => {
-    const runVetSpy = sinon.stub().resolves([]);
-    const probeSpy = sinon
-      .stub()
-      .returns({ supported: true, supportsBatch: false });
-
-    provider = new VerdictProvider(() => { /* noop */ }, {
-      runVet: runVetSpy as unknown as (b: string, n: string[], o: VetOptions) => Promise<VetResult[]>,
-      probeVetSupport: probeSpy,
-      locateBinary: () => undefined, // binary missing
-    });
-
+  test('the package of the launch command is looked up, not the server key', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
     const doc = await makeDoc(
-      JSON.stringify({ mcpServers: { filesystem: { command: 'node' } } })
+      config({
+        files: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'] },
+        fetch: { command: 'uvx', args: ['mcp-server-fetch'] },
+      })
     );
     provider.trigger(doc);
-    // Wait long enough for debounce to fire.
-    await new Promise<void>((r) => setTimeout(r, 500));
+    await wait();
 
-    sinon.assert.notCalled(runVetSpy);
+    assert.deepStrictEqual(
+      vet.calls.map((c) => `${c.ecosystem}:${c.name}`).sort(),
+      ['npm:@modelcontextprotocol/server-filesystem', 'pypi:mcp-server-fetch']
+    );
+    assert.strictEqual(verdictDiagnostics(doc).length, 0);
   });
 
-  test('degrade_path: runVet never called when vet is unsupported', async () => {
-    const runVetSpy = sinon.stub().resolves([]);
-
-    provider = new VerdictProvider(() => { /* noop */ }, {
-      runVet: runVetSpy as unknown as (b: string, n: string[], o: VetOptions) => Promise<VetResult[]>,
-      probeVetSupport: () => ({ supported: false, supportsBatch: false }),
-      locateBinary: () => '/usr/local/bin/mcp-audit',
-    });
-
+  test('a server with no package gets no lookup', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
     const doc = await makeDoc(
-      JSON.stringify({ mcpServers: { filesystem: { command: 'node' } } })
+      config({
+        local: { command: 'node', args: ['./server.js'] },
+        remote: { url: 'https://example.test/mcp' },
+        wrapped: { command: 'cmd', args: ['/c', 'npx', '-y', 'mcp-remote'] },
+      })
     );
     provider.trigger(doc);
-    await new Promise<void>((r) => setTimeout(r, 500));
-
-    sinon.assert.notCalled(runVetSpy);
+    await wait();
+    assert.strictEqual(vet.calls.length, 0);
   });
 
-  test('debounce_cache: rapid triggers result in a single runVet call', async () => {
-    let callCount = 0;
-    const runVetFake = async (_b: string, names: string[], _o: VetOptions) => {
-      callCount++;
-      return names.map((n) => makeResult({ name: n }));
-    };
-
-    provider = new VerdictProvider(() => { /* noop */ }, {
-      runVet: runVetFake,
-      probeVetSupport: () => ({ supported: true, supportsBatch: true }),
-      locateBinary: () => '/usr/local/bin/mcp-audit',
-    });
-
+  test('a pinned version with open CVEs gives one Warning that names the package', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
     const doc = await makeDoc(
-      JSON.stringify({ mcpServers: { filesystem: { command: 'node' } } })
+      config({ proxy: { command: 'npx', args: ['-y', 'mcp-remote@0.1.30', 'https://example.test'] } })
     );
+    provider.trigger(doc);
+    await wait();
 
-    // Fire trigger 5 times in quick succession.
+    assert.strictEqual(vet.calls[0].version, '0.1.30');
+    const diags = verdictDiagnostics(doc);
+    assert.strictEqual(diags.length, 1);
+    assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Warning);
+    assert.ok(diags[0].message.startsWith('mcp-remote: 6 known CVEs affect this version'), diags[0].message);
+    assert.ok(!diags[0].message.includes('CVE-2025-6514'), 'the fixed CVE is not listed');
+    // The Warning is on the server key.
+    assert.strictEqual(doc.getText(diags[0].range), '"proxy"');
+  });
+
+  test('a typosquat gives one Warning with the registry name', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(
+      config({ files: { command: 'npx', args: ['@modelcontextprotocol/server-filesytem'] } })
+    );
+    provider.trigger(doc);
+    await wait();
+    const diags = verdictDiagnostics(doc);
+    assert.strictEqual(diags.length, 1);
+    assert.strictEqual(diags[0].code, 'TYPOSQUAT');
+    assert.ok(diags[0].message.includes('@modelcontextprotocol/server-filesystem'), diags[0].message);
+  });
+
+  test('a MAL record that names the pinned version gives one Error with the record ID', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(config({ llm: { command: 'uvx', args: ['litellm==1.82.7'] } }));
+    provider.trigger(doc);
+    await wait();
+    const diags = verdictDiagnostics(doc);
+    assert.strictEqual(diags.length, 1);
+    assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Error);
+    assert.strictEqual(diags[0].code, 'MAL-2026-2144');
+    assert.ok(diags[0].message.includes('lists this version'), diags[0].message);
+  });
+
+  test('a MAL record for other releases: the CVE Warning stays, and the record is Information', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(config({ llm: { command: 'uvx', args: ['litellm==1.83.0'] } }));
+    provider.trigger(doc);
+    await wait();
+    const diags = verdictDiagnostics(doc);
+    assert.strictEqual(diags.length, 2);
+    const warning = diags.find((d) => d.severity === vscode.DiagnosticSeverity.Warning);
+    const info = diags.find((d) => d.severity === vscode.DiagnosticSeverity.Information);
+    assert.ok(warning?.message.includes('17 known CVEs affect this version'), warning?.message);
+    assert.ok(info?.message.includes('the pinned version is not one of them'), info?.message);
+    assert.ok(!diags.some((d) => d.severity === vscode.DiagnosticSeverity.Error));
+  });
+
+  test('no pin, and a record that names releases: one Warning that makes no claim about the newest release', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(config({ lite: { command: 'uvx', args: ['claude-lite'] } }));
+    provider.trigger(doc);
+    await wait();
+    const diags = verdictDiagnostics(doc);
+    assert.strictEqual(diags.length, 1);
+    assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Warning);
+    assert.strictEqual(diags[0].code, 'MAL-2026-2269');
+    assert.ok(diags[0].message.includes('pins no version'), diags[0].message);
+  });
+
+  test('an archived package gives one Information diagnostic', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(
+      config({ gh: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'] } })
+    );
+    provider.trigger(doc);
+    await wait();
+    const diags = verdictDiagnostics(doc);
+    assert.strictEqual(diags.length, 1);
+    assert.strictEqual(diags[0].code, 'ARCHIVED');
+    assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Information);
+    assert.ok(diags[0].message.includes('github/github-mcp-server'), diags[0].message);
+  });
+
+  test('an unknown package gives no diagnostic', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(config({ x: { command: 'npx', args: ['not-a-real-pkg-zz'] } }));
+    provider.trigger(doc);
+    await wait();
+    assert.strictEqual(vet.calls.length, 1);
+    assert.strictEqual(verdictDiagnostics(doc).length, 0);
+  });
+
+  test('two servers that start one package give one lookup; a second trigger gives none', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(
+      config({
+        a: { command: 'npx', args: ['mcp-remote', 'https://a.example.test'] },
+        b: { command: 'npx', args: ['mcp-remote', 'https://b.example.test'] },
+      })
+    );
     for (let i = 0; i < 5; i++) provider.trigger(doc);
+    await wait();
+    assert.strictEqual(vet.calls.length, 1, 'debounce and one call for each package');
+    assert.strictEqual(verdictDiagnostics(doc).length, 2, 'each server gets the Warning');
 
-    await new Promise<void>((r) => setTimeout(r, 500));
-
-    assert.strictEqual(callCount, 1, 'debounce should collapse to a single call');
+    provider.trigger(doc);
+    await wait();
+    assert.strictEqual(vet.calls.length, 1, 'the cache answers the second trigger');
   });
 
-  test('cache: second trigger for same server does not call runVet again', async () => {
-    let callCount = 0;
-    const runVetFake = async (_b: string, names: string[], _o: VetOptions) => {
-      callCount++;
-      return names.map((n) => makeResult({ name: n }));
-    };
-
-    provider = new VerdictProvider(() => { /* noop */ }, {
-      runVet: runVetFake,
-      probeVetSupport: () => ({ supported: true, supportsBatch: false }),
-      locateBinary: () => '/usr/local/bin/mcp-audit',
-    });
-
+  test('one package that fails does not stop the others, and the log says so one time', async () => {
+    const vet = fakeVet();
+    const logs: string[] = [];
+    provider = makeProvider(vet.run, (m) => logs.push(m));
     const doc = await makeDoc(
-      JSON.stringify({ mcpServers: { filesystem: { command: 'node' } } })
+      config({
+        bad: { command: 'npx', args: ['no-saved-answer-1'] },
+        bad2: { command: 'npx', args: ['no-saved-answer-2'] },
+        proxy: { command: 'npx', args: ['mcp-remote'] },
+      })
     );
-
-    // First trigger — populates cache.
     provider.trigger(doc);
-    await new Promise<void>((r) => setTimeout(r, 500));
-    assert.strictEqual(callCount, 1, 'first trigger should call runVet once');
-
-    // Second trigger — server is cached, runVet should not fire again.
+    await wait();
+    assert.strictEqual(verdictDiagnostics(doc).length, 1);
+    // One line for each different error, and no line twice.
+    assert.strictEqual(logs.filter((l) => l.startsWith('vet error')).length, 2);
     provider.trigger(doc);
-    await new Promise<void>((r) => setTimeout(r, 500));
-    assert.strictEqual(callCount, 1, 'second trigger should use cache');
+    await wait();
+    assert.strictEqual(logs.filter((l) => l.startsWith('vet error')).length, 2);
+    assert.strictEqual(vet.calls.length, 5, 'a failed lookup is tried again on the next run');
   });
 
-  test('unknown_path: unknown verdict does not produce a diagnostic', async () => {
-    const runVetFake = async (_b: string, names: string[], _o: VetOptions) =>
-      names.map((n) =>
-        makeResult({ name: n, verdict: 'unknown', capabilities: null, registry_url: null })
-      );
-
-    provider = new VerdictProvider(() => { /* noop */ }, {
-      runVet: runVetFake,
-      probeVetSupport: () => ({ supported: true, supportsBatch: false }),
-      locateBinary: () => '/usr/local/bin/mcp-audit',
-    });
-
-    const doc = await makeDoc(
-      JSON.stringify({ mcpServers: { 'my-local-tool': { command: 'node' } } })
+  test('an answer in a form that the extension can not read shows nothing and writes one log line', async () => {
+    const logs: string[] = [];
+    // The form that the extension read before 0.3.0. The real command never printed it.
+    let calls = 0;
+    provider = makeProvider(
+      async () => {
+        calls += 1;
+        return { name: 'mcp-remote', verdict: 'cve', cve_count: 3, cve_ids: [] };
+      },
+      (m) => logs.push(m)
     );
+    const doc = await makeDoc(config({ proxy: { command: 'npx', args: ['mcp-remote'] } }));
     provider.trigger(doc);
-    await new Promise<void>((r) => setTimeout(r, 500));
-
-    // No diagnostic should be registered for the 'unknown' verdict.
-    const diags = vscode.languages.getDiagnostics(doc.uri);
-    const vetDiags = diags.filter((d) => d.source === 'credenzo-vet');
-    assert.strictEqual(
-      vetDiags.length,
-      0,
-      'unknown verdict must not produce a diagnostic squiggle'
-    );
+    await wait();
+    assert.strictEqual(verdictDiagnostics(doc).length, 0);
+    assert.strictEqual(logs.length, 1);
+    assert.ok(logs[0].includes('not in a form'), logs[0]);
+    provider.trigger(doc);
+    await wait();
+    assert.strictEqual(calls, 1, 'an answer that can not be read is not asked for again');
   });
 
-  test('vet_json_parsing: cve verdict produces a Warning diagnostic', async () => {
-    const runVetFake = async (_b: string, names: string[], _o: VetOptions) =>
-      names.map((n) =>
-        makeResult({
-          name: n,
-          verdict: 'cve',
-          cve_count: 1,
-          cve_ids: ['CVE-2024-9001'],
-        })
-      );
-
-    provider = new VerdictProvider(() => { /* noop */ }, {
-      runVet: runVetFake,
-      probeVetSupport: () => ({ supported: true, supportsBatch: false }),
-      locateBinary: () => '/usr/local/bin/mcp-audit',
+  test('two documents that start one package at the same time give one lookup', async () => {
+    let calls = 0;
+    provider = makeProvider(async (_b, pkg) => {
+      calls += 1;
+      await wait(200);
+      return fakeVet().run(_b, pkg, { online: false });
     });
-
-    const doc = await makeDoc(
-      JSON.stringify({ mcpServers: { vuln: { command: 'node' } } })
-    );
-    provider.trigger(doc);
-    await new Promise<void>((r) => setTimeout(r, 500));
-
-    const diags = vscode.languages.getDiagnostics(doc.uri);
-    const vetDiags = diags.filter((d) => d.source === 'credenzo-vet');
-    assert.strictEqual(vetDiags.length, 1, 'one Warning for the CVE');
-    assert.strictEqual(vetDiags[0].severity, vscode.DiagnosticSeverity.Warning);
-    assert.ok(vetDiags[0].message.includes('CVE-2024-9001'), vetDiags[0].message);
+    const text = config({ proxy: { command: 'npx', args: ['mcp-remote'] } });
+    const a = await makeDoc(text);
+    const b = await makeDoc(text + '\n');
+    provider.trigger(a);
+    provider.trigger(b);
+    await wait(900);
+    assert.strictEqual(calls, 1);
+    assert.strictEqual(verdictDiagnostics(a).length, 1);
+    assert.strictEqual(verdictDiagnostics(b).length, 1);
   });
 
-  test('vet_json_parsing: typosquat verdict produces a Warning diagnostic', async () => {
-    const runVetFake = async (_b: string, names: string[], _o: VetOptions) =>
-      names.map((n) =>
-        makeResult({
-          name: n,
-          verdict: 'typosquat',
-          typosquat_suggestion: 'real-filesystem',
-        })
-      );
-
-    provider = new VerdictProvider(() => { /* noop */ }, {
-      runVet: runVetFake,
-      probeVetSupport: () => ({ supported: true, supportsBatch: false }),
-      locateBinary: () => '/usr/local/bin/mcp-audit',
+  test('at most 4 lookups run at one time', async () => {
+    let running = 0;
+    let most = 0;
+    provider = makeProvider(async () => {
+      running += 1;
+      most = Math.max(most, running);
+      await wait(50);
+      running -= 1;
+      return {};
     });
-
-    const doc = await makeDoc(
-      JSON.stringify({ mcpServers: { 'filesystemm': { command: 'node' } } })
-    );
-    provider.trigger(doc);
-    await new Promise<void>((r) => setTimeout(r, 500));
-
-    const diags = vscode.languages.getDiagnostics(doc.uri);
-    const vetDiags = diags.filter((d) => d.source === 'credenzo-vet');
-    assert.strictEqual(vetDiags.length, 1);
-    assert.strictEqual(vetDiags[0].severity, vscode.DiagnosticSeverity.Warning);
-    assert.ok(
-      vetDiags[0].message.includes('real-filesystem'),
-      vetDiags[0].message
-    );
+    const servers: Record<string, unknown> = {};
+    for (let i = 0; i < 12; i++) servers[`s${i}`] = { command: 'npx', args: [`pkg-number-${i}`] };
+    provider.trigger(await makeDoc(config(servers)));
+    await wait(900);
+    assert.strictEqual(most, 4);
   });
 
-  test('degrade_path: runVet error is swallowed and no crash occurs', async () => {
-    const runVetFake = async () => {
-      throw new Error('network error');
-    };
-
-    provider = new VerdictProvider(() => { /* noop */ }, {
-      runVet: runVetFake,
-      probeVetSupport: () => ({ supported: true, supportsBatch: true }),
-      locateBinary: () => '/usr/local/bin/mcp-audit',
-    });
-
-    const doc = await makeDoc(
-      JSON.stringify({ mcpServers: { x: { command: 'node' } } })
-    );
-
-    // Should not throw.
-    provider.trigger(doc);
-    await new Promise<void>((r) => setTimeout(r, 500));
-
-    // No diagnostics (vet failed, nothing to show).
-    const diags = vscode.languages.getDiagnostics(doc.uri);
-    const vetDiags = diags.filter((d) => d.source === 'credenzo-vet');
-    assert.strictEqual(vetDiags.length, 0);
+  test('a change of the online setting asks again', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(config({ proxy: { command: 'npx', args: ['mcp-remote'] } }));
+    const settings = vscode.workspace.getConfiguration('mcp-audit');
+    try {
+      provider.trigger(doc);
+      await wait();
+      await settings.update('verdict.online', true, vscode.ConfigurationTarget.Global);
+      provider.trigger(doc);
+      await wait();
+      assert.strictEqual(vet.calls.length, 2);
+    } finally {
+      await settings.update('verdict.online', undefined, vscode.ConfigurationTarget.Global);
+    }
   });
 
-  test('clear(): removes diagnostics for the given URI', async () => {
-    const runVetFake = async (_b: string, names: string[], _o: VetOptions) =>
-      names.map((n) =>
-        makeResult({ name: n, verdict: 'cve', cve_count: 1, cve_ids: ['CVE-2024-0000'] })
-      );
-
-    provider = new VerdictProvider(() => { /* noop */ }, {
-      runVet: runVetFake,
-      probeVetSupport: () => ({ supported: true, supportsBatch: false }),
-      locateBinary: () => '/usr/local/bin/mcp-audit',
-    });
-
-    const doc = await makeDoc(
-      JSON.stringify({ mcpServers: { x: { command: 'node' } } })
-    );
+  test('clear() stops a run that waits, so a closed file gets no diagnostic', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(config({ proxy: { command: 'npx', args: ['mcp-remote'] } }));
     provider.trigger(doc);
-    await new Promise<void>((r) => setTimeout(r, 500));
-
-    // Verify the diagnostic was set.
-    const before = vscode.languages.getDiagnostics(doc.uri).filter(
-      (d) => d.source === 'credenzo-vet'
-    );
-    assert.strictEqual(before.length, 1, 'diagnostic should be set before clear');
-
     provider.clear(doc.uri);
+    await wait();
+    assert.strictEqual(vet.calls.length, 0);
+    assert.strictEqual(verdictDiagnostics(doc).length, 0);
+  });
 
-    const after = vscode.languages.getDiagnostics(doc.uri).filter(
-      (d) => d.source === 'credenzo-vet'
-    );
-    assert.strictEqual(after.length, 0, 'diagnostic should be cleared');
+  test('no binary: no lookup', async () => {
+    const run = sinon.stub().resolves({});
+    provider = new VerdictProvider(() => { /* noop */ }, {
+      runVet: run,
+      probeVetSupport: () => ({ supported: true }),
+      locateBinary: () => undefined,
+    });
+    provider.trigger(await makeDoc(config({ x: { command: 'npx', args: ['mcp-remote'] } })));
+    await wait();
+    sinon.assert.notCalled(run);
+  });
+
+  test('no usable vet: no lookup, and the log says why one time', async () => {
+    const run = sinon.stub().resolves({});
+    const logs: string[] = [];
+    provider = new VerdictProvider((m) => logs.push(m), {
+      runVet: run,
+      probeVetSupport: () => ({ supported: false }),
+      locateBinary: () => '/usr/local/bin/mcp-audit',
+    });
+    const doc = await makeDoc(config({ x: { command: 'npx', args: ['mcp-remote'] } }));
+    provider.trigger(doc);
+    await wait();
+    provider.trigger(doc);
+    await wait();
+    sinon.assert.notCalled(run);
+    assert.strictEqual(logs.length, 1);
+    assert.ok(logs[0].includes('Registry verdicts are off'), logs[0]);
+  });
+
+  test('clear() removes the diagnostics of the document', async () => {
+    const vet = fakeVet();
+    provider = makeProvider(vet.run);
+    const doc = await makeDoc(config({ proxy: { command: 'npx', args: ['mcp-remote'] } }));
+    provider.trigger(doc);
+    await wait();
+    assert.strictEqual(verdictDiagnostics(doc).length, 1);
+    provider.clear(doc.uri);
+    assert.strictEqual(verdictDiagnostics(doc).length, 0);
   });
 });

@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-11-18T10:35:31.075243+00:00",
+  "package": {
+    "ecosystem": "pypi",
+    "name": "claude-lite"
+  },
+  "registry": {
+    "listed": false,
+    "verified": false,
+    "maintainer": null,
+    "entry_updated": null,
+    "registry_updated": "2026-11-14",
+    "archived": false,
+    "archive_notice": null,
+    "successor": null
+  },
+  "known_vulnerabilities": [],
+  "capabilities": [],
+  "attestation": {
+    "hash_pins_available": false,
+    "attestation_expected": false
+  },
+  "typosquat_of": null,
+  "typosquat_basis": null,
+  "malicious": [
+    {
+      "id": "MAL-2026-2269",
+      "ecosystem": "pypi",
+      "aliases": [],
+      "summary": "Malicious code in claude-lite (PyPI)",
+      "versions": [
+        "2.33.0"
+      ],
+      "ranges": [],
+      "latest_affected": false,
+      "blanket_range_ignored": false,
+      "link": "https://osv.dev/vulnerability/MAL-2026-2269",
+      "note": null
+    }
+  ],
+  "other_ecosystem_malicious": [],
+  "tags": [],
+  "links": {
+    "repo": null,
+    "verdict_page": "https://mcp-audit.dev/v1/verdicts/pypi/claude-lite.json"
+  }
+}

@@ -71,3 +71,40 @@ jobs:
           name: mcp-audit-vscode-${{ github.sha }}.vsix
           path: '*.vsix'
           retention-days: 14
+
+  # The extension against the real command. The unit tests read saved answers;
+  # this job installs Credenzo from PyPI and starts it, so a release that
+  # changes the answer fails here.
+  contract:
+    name: Contract test with the real credenzo
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Credenzo from PyPI
+        run: |
+          python -m pip install --disable-pip-version-check credenzo
+          credenzo version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile
+        run: npm run compile-tests
+
+      - name: Contract test
+        env:
+          CREDENZO_PYTHON: python
+        run: node scripts/contract-test.mjs credenzo

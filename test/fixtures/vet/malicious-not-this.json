@@ -1,0 +1,341 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-11-18T10:35:32.475931+00:00",
+  "package": {
+    "ecosystem": "pypi",
+    "name": "litellm",
+    "version": "1.83.0"
+  },
+  "registry": {
+    "listed": true,
+    "verified": false,
+    "maintainer": "BerriAI",
+    "entry_updated": "2026-10-29",
+    "registry_updated": "2026-11-14",
+    "archived": false,
+    "archive_notice": null,
+    "successor": null
+  },
+  "known_vulnerabilities": [
+    {
+      "cve": "CVE-2024-10188",
+      "cvss": null,
+      "description": "LiteLLM Vulnerable to Denial of Service (DoS)",
+      "fixed_in": "1.53.1.dev1",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2024-10188",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2024-2952",
+      "cvss": null,
+      "description": "LiteLLM has Server-Side Template Injection vulnerability in /completions endpoint",
+      "fixed_in": "1.34.42",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2024-2952",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2024-4888",
+      "cvss": null,
+      "description": "Arbitrary file deletion in litellm",
+      "fixed_in": "1.35.36",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2024-4888",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2024-5225",
+      "cvss": null,
+      "description": "SQL injection in litellm",
+      "fixed_in": "1.40.0",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2024-5225",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2024-5710",
+      "cvss": null,
+      "description": "litellm vulnerable to improper access control in team management",
+      "fixed_in": "1.40.15",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2024-5710",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2024-5751",
+      "cvss": null,
+      "description": "litellm vulnerable to remote code execution based on using eval unsafely",
+      "fixed_in": "1.40.16",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2024-5751",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2024-6587",
+      "cvss": null,
+      "description": "LiteLLM Server-Side Request Forgery (SSRF) vulnerability",
+      "fixed_in": "1.44.8",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2024-6587",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2024-8984",
+      "cvss": null,
+      "description": "LiteLLM Vulnerable to Denial of Service (DoS) via Crafted HTTP Request",
+      "fixed_in": "1.56.2",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2024-8984",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2024-9606",
+      "cvss": null,
+      "description": "LiteLLM Reveals Portion of API Key via a Logging File",
+      "fixed_in": "1.44.12",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2024-9606",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2025-0628",
+      "cvss": null,
+      "description": "LiteLLM Has an Improper Authorization Vulnerability",
+      "fixed_in": "1.61.15",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2025-0628",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2026-114612",
+      "cvss": null,
+      "description": "LiteLLM: Privilege Escalation to Proxy Admin via Cross-Domain Reuse of the Salt Key",
+      "fixed_in": "1.104.0rc2",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-114612",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-12773",
+      "cvss": null,
+      "description": "LiteLLM: MCP Proxy Has Improper Authentication",
+      "fixed_in": "1.84.0",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-12773",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-35029",
+      "cvss": null,
+      "description": "LiteLLM: Privilege escalation via unrestricted proxy configuration endpoint",
+      "fixed_in": "1.83.0",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-35029",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2026-35030",
+      "cvss": null,
+      "description": "LiteLLM: Authentication bypass via OIDC userinfo cache key collision",
+      "fixed_in": "1.83.0",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-35030",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2026-37004",
+      "cvss": null,
+      "description": "LiteLLM vulnerable to server-side template injection in the /prompts/test endpoint",
+      "fixed_in": "1.83.7",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-37004",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-40217",
+      "cvss": null,
+      "description": "LiteLLM has a sandbox escape in custom-code guardrail",
+      "fixed_in": "1.83.10",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-40217",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-42203",
+      "cvss": null,
+      "description": "LiteLLM: Server-Side Template Injection in /prompts/test endpoint",
+      "fixed_in": "1.83.7",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-42203",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-42208",
+      "cvss": null,
+      "description": "LiteLLM has SQL Injection in Proxy API key verification",
+      "fixed_in": "1.83.7",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-42208",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-42271",
+      "cvss": null,
+      "description": "LiteLLM: Authenticated command execution via MCP stdio test endpoints",
+      "fixed_in": "1.83.7",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-42271",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-47101",
+      "cvss": null,
+      "description": "LiteLLM allows an authenticated internal_user to create API keys with access to routes that their role does not permit",
+      "fixed_in": "1.83.14",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-47101",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-47102",
+      "cvss": null,
+      "description": "LiteLLM allows a user to modify their own user_role via the /user/update endpoint",
+      "fixed_in": "1.83.10",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-47102",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-49468",
+      "cvss": null,
+      "description": "LiteLLM: Authentication Bypass via Host Header Injection",
+      "fixed_in": "1.84.0",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-49468",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-59819",
+      "cvss": null,
+      "description": "LiteLLM: Local file read via request-supplied OIDC file references",
+      "fixed_in": "1.83.10",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-59819",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-59820",
+      "cvss": null,
+      "description": "LiteLLM: Arbitrary file write via path traversal in Skills archive extraction",
+      "fixed_in": "1.83.7",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-59820",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-59821",
+      "cvss": null,
+      "description": "LiteLLM: Custom Code Guardrails production endpoints bypass code safety checks",
+      "fixed_in": "1.82.0",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-59821",
+      "status": "fixed"
+    },
+    {
+      "cve": "CVE-2026-59822",
+      "cvss": null,
+      "description": "LiteLLM: MCP Authentication Bypass via OAuth2 Passthrough Fallback",
+      "fixed_in": "1.84.0",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-59822",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-59823",
+      "cvss": null,
+      "description": "LiteLLM Proxy has server-side request forgery via the `user_config` request parameter",
+      "fixed_in": "1.83.9",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-59823",
+      "status": "affected"
+    },
+    {
+      "cve": "CVE-2026-84377",
+      "cvss": null,
+      "description": "LiteLLM: Authenticated SSRF and provider-credential exfiltration via unvalidated request-body routing parameters",
+      "fixed_in": "1.96.2",
+      "source": "NVD",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-84377",
+      "status": "affected"
+    },
+    {
+      "cve": "GHSA-69x8-hrgq-fjj8",
+      "cvss": null,
+      "description": "LiteLLM: Password hash exposure and pass-the-hash authentication bypass",
+      "fixed_in": "1.83.0",
+      "source": "NVD",
+      "link": "https://github.com/advisories/GHSA-69x8-hrgq-fjj8",
+      "status": "fixed"
+    },
+    {
+      "cve": "GHSA-g5ff-637f-6q2m",
+      "cvss": null,
+      "description": "LiteLLM: internal_user_viewer arbitrary local file read via `vertex_ai_credentials`",
+      "fixed_in": "1.95.0",
+      "source": "NVD",
+      "link": "https://github.com/advisories/GHSA-g5ff-637f-6q2m",
+      "status": "affected"
+    },
+    {
+      "cve": "GHSA-hhww-mrg2-969h",
+      "cvss": null,
+      "description": "LiteLLM vulnerable to reflected XSS in /sso/debug/callback",
+      "fixed_in": "1.85.0",
+      "source": "NVD",
+      "link": "https://github.com/advisories/GHSA-hhww-mrg2-969h",
+      "status": "affected"
+    }
+  ],
+  "capabilities": [
+    "network_out"
+  ],
+  "attestation": {
+    "hash_pins_available": false,
+    "attestation_expected": false
+  },
+  "typosquat_of": null,
+  "typosquat_basis": null,
+  "malicious": [
+    {
+      "id": "MAL-2026-2144",
+      "ecosystem": "pypi",
+      "aliases": [
+        "PYSEC-2026-2"
+      ],
+      "summary": "Malicious code in litellm (PyPI)",
+      "versions": [
+        "1.82.7",
+        "1.82.8",
+        "1.107.0"
+      ],
+      "ranges": [],
+      "latest_affected": false,
+      "blanket_range_ignored": false,
+      "link": "https://osv.dev/vulnerability/MAL-2026-2144",
+      "note": null
+    }
+  ],
+  "other_ecosystem_malicious": [],
+  "tags": [
+    "gateway",
+    "proxy",
+    "remote",
+    "ai",
+    "community"
+  ],
+  "links": {
+    "repo": "https://github.com/BerriAI/litellm",
+    "verdict_page": "https://mcp-audit.dev/v1/verdicts/pypi/litellm.json"
+  }
+}

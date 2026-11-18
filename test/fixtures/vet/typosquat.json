@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-11-18T10:35:29.517232+00:00",
+  "package": {
+    "ecosystem": "npm",
+    "name": "@modelcontextprotocol/server-filesytem"
+  },
+  "registry": {
+    "listed": false,
+    "verified": false,
+    "maintainer": null,
+    "entry_updated": null,
+    "registry_updated": "2026-11-14",
+    "archived": false,
+    "archive_notice": null,
+    "successor": null
+  },
+  "known_vulnerabilities": [],
+  "capabilities": [],
+  "attestation": {
+    "hash_pins_available": false,
+    "attestation_expected": false
+  },
+  "typosquat_of": "@modelcontextprotocol/server-filesystem",
+  "typosquat_basis": "edit-distance",
+  "malicious": [],
+  "other_ecosystem_malicious": [],
+  "tags": [],
+  "links": {
+    "repo": null,
+    "verdict_page": "https://mcp-audit.dev/v1/verdicts/npm/at-modelcontextprotocol-server-filesytem.json"
+  }
+}
