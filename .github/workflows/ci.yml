@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: ['**']
 
+# The token of each job can only read the repository.
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     strategy:
@@ -16,9 +20,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           # @vscode/test-electron 3.x requires Node >= 22 (it finds the macOS binary that VS Code 1.110 renamed)
           node-version: '22'
@@ -59,7 +65,7 @@ jobs:
           fi
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.os == 'ubuntu-latest'
         with:
           name: mcp-audit-vscode-${{ github.sha }}.vsix

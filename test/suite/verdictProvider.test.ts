@@ -17,6 +17,8 @@ import * as sinon from 'sinon';
 import {
   formatBadge,
   formatHover,
+  escapeMarkdown,
+  isPlainHttpsUrl,
   buildDecorationOptions,
   VerdictProvider,
 } from '../../src/verdictProvider';
@@ -127,6 +129,49 @@ suite('verdictProvider — formatHover()', () => {
     assert.ok(md.value.includes('Not in registry'), md.value);
     assert.ok(!md.value.includes('Capabilities:'), md.value);
     assert.ok(!md.value.includes('mcp-audit.dev'), md.value);
+  });
+
+  test('hover is not trusted, so a command link can not run', () => {
+    assert.strictEqual(formatHover(makeResult()).isTrusted, false);
+  });
+
+  test('registry text can not add a link or an image to the hover', () => {
+    const md = formatHover(
+      makeResult({
+        maintainer: '[x](command:workbench.action.terminal.new)',
+        capabilities: '![i](http://example.test/p.png) <b>x</b>',
+      })
+    );
+    assert.ok(!md.value.includes('[x](command:'), md.value);
+    assert.ok(!md.value.includes('![i]('), md.value);
+    assert.ok(!md.value.includes('<b>'), md.value);
+    assert.ok(md.value.includes('\\[x\\]\\(command:'), md.value);
+  });
+
+  test('typosquat suggestion can not leave its inline code', () => {
+    const md = formatHover(
+      makeResult({ verdict: 'typosquat', typosquat_suggestion: 'a` [x](command:y) `b' })
+    );
+    assert.ok(md.value.includes('`a [x](command:y) b`'), md.value);
+  });
+
+  test('a registry link that is not a plain https URL is left out', () => {
+    for (const bad of [
+      'command:workbench.action.terminal.new',
+      'http://example.test/x',
+      'https://example.test/x) [y](command:z',
+      'javascript:alert(1)',
+    ]) {
+      const md = formatHover(makeResult({ registry_url: bad }));
+      assert.ok(!md.value.includes('View the registry entry'), bad);
+      assert.strictEqual(isPlainHttpsUrl(bad), false, bad);
+    }
+    assert.strictEqual(isPlainHttpsUrl('https://credenzo.io/servers/x/'), true);
+  });
+
+  test('escapeMarkdown keeps a CVE ID readable', () => {
+    assert.strictEqual(escapeMarkdown('CVE-2024-4242'), 'CVE-2024-4242');
+    assert.strictEqual(escapeMarkdown('a\nb'), 'a b');
   });
 
   test('typosquat hover shows suggestion as inline code', () => {
