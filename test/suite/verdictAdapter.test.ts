@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
-import { adaptVerdict } from '../../src/verdictAdapter';
+import { adaptVerdict, canonicalVersion } from '../../src/verdictAdapter';
 import type { LaunchPackage } from '../../src/launchPackage';
 
 const FIXTURES = path.resolve(__dirname, '../../../test/fixtures/vet');
@@ -99,7 +99,24 @@ suite('verdictAdapter — saved real answers', () => {
     assert.strictEqual(r.verdict, 'malicious');
     assert.deepStrictEqual(r.cve_ids, ['MAL-2026-2144']);
     assert.deepStrictEqual(r.other_malicious_ids, []);
+    assert.deepStrictEqual(r.possible_malicious_ids, []);
     assert.ok(r.cve_count > 0, 'the CVE count is kept');
+  });
+
+  test('the pinned version is compared as a release, not as text', () => {
+    // uv installs 1.107.0 for "litellm==1.107"; the record names "1.107.0".
+    const doc = fixture('malicious-pinned');
+    for (const pin of ['1.107', '1.107.0', '1.107.0.0', '1.082.7']) {
+      const asked = pypi('litellm', pin);
+      const answer = { ...doc, package: { ...(doc.package as object), version: pin } };
+      assert.strictEqual(adaptVerdict(answer, asked)?.verdict, 'malicious', pin);
+    }
+    assert.strictEqual(canonicalVersion('2.1.1+x'), canonicalVersion('2.1.1'));
+    assert.strictEqual(canonicalVersion('1.0.0'), '1');
+    assert.strictEqual(canonicalVersion('1.0.0-rc1'), '1-rc1');
+    assert.notStrictEqual(canonicalVersion('1.0.0-rc1'), canonicalVersion('1.0.0'));
+    assert.notStrictEqual(canonicalVersion('1.10'), canonicalVersion('1.1'));
+    assert.strictEqual(canonicalVersion('0.0'), '0');
   });
 
   test('a MAL record for other releases is a note; the CVEs stay the verdict', () => {
@@ -110,16 +127,18 @@ suite('verdictAdapter — saved real answers', () => {
     // The registry field `cve` holds CVE and GHSA IDs. No MAL ID is among them.
     assert.ok(r.cve_ids.every((id) => /^(CVE|GHSA)-/.test(id)), r.cve_ids.join(' '));
     assert.deepStrictEqual(r.other_malicious_ids, ['MAL-2026-2144']);
+    assert.deepStrictEqual(r.possible_malicious_ids, []);
   });
 
-  test('a MAL record that does not cover the newest release is a note (the command exits 0)', () => {
+  test('no pin, and a record that names releases: the newest release is not known, so "possible"', () => {
     const r = adaptVerdict(fixture('malicious-other'), pypi('claude-lite'));
     assert.ok(r);
     assert.strictEqual(r.verdict, 'unknown');
-    assert.deepStrictEqual(r.other_malicious_ids, ['MAL-2026-2269']);
+    assert.deepStrictEqual(r.possible_malicious_ids, ['MAL-2026-2269']);
+    assert.deepStrictEqual(r.other_malicious_ids, []);
   });
 
-  test('a MAL record that covers the newest release is the verdict', () => {
+  test('no pin, and a record with a range with no end: the verdict', () => {
     const doc = fixture('malicious-other');
     const records = (doc.malicious as Array<Record<string, unknown>>).map((m) => ({
       ...m,
@@ -128,6 +147,23 @@ suite('verdictAdapter — saved real answers', () => {
     const r = adaptVerdict({ ...doc, malicious: records }, pypi('claude-lite'));
     assert.strictEqual(r?.verdict, 'malicious');
     assert.deepStrictEqual(r?.cve_ids, ['MAL-2026-2269']);
+  });
+
+  test('a pin, and a record with a range: not compared, so "possible", not "this version"', () => {
+    const doc = fixture('malicious-not-this');
+    for (const change of [
+      { latest_affected: true },
+      { ranges: [{ type: 'ECOSYSTEM', events: [{ introduced: '10.0.1' }] }] },
+    ]) {
+      const records = (doc.malicious as Array<Record<string, unknown>>).map((m) => ({
+        ...m,
+        ...change,
+      }));
+      const r = adaptVerdict({ ...doc, malicious: records }, pypi('litellm', '1.83.0'));
+      assert.strictEqual(r?.verdict, 'cve');
+      assert.deepStrictEqual(r?.possible_malicious_ids, ['MAL-2026-2144']);
+      assert.deepStrictEqual(r?.other_malicious_ids, []);
+    }
   });
 
   test('an archived package is "archived", not "verified"', () => {

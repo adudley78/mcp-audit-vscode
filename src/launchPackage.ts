@@ -128,6 +128,12 @@ function pypiPackage(launcher: string, args: string[]): LaunchPackage | null {
     effective = args.slice(1);
   }
 
+  // Credenzo looks for `--from` / `-f` at each position before it reads
+  // anything else. This module reads one `--from` in the launcher options,
+  // and declines when a second one, or one in a different place, exists.
+  const fromCount = effective.filter((a) => a === '--from' || a === '-f').length;
+  if (fromCount > 1) return null;
+
   let fromToken: string | null = null;
   let positional: string | null = null;
   for (let i = 0; i < effective.length; i++) {
@@ -140,6 +146,8 @@ function pypiPackage(launcher: string, args: string[]): LaunchPackage | null {
       continue;
     }
     if (UVX_FLAGS_WITH_VALUE.has(arg)) {
+      // A value that looks like a flag: the two programs can read it in two ways.
+      if (i + 1 >= effective.length || effective[i + 1].startsWith('-')) return null;
       i += 1;
       continue;
     }
@@ -147,16 +155,15 @@ function pypiPackage(launcher: string, args: string[]): LaunchPackage | null {
       if (!UVX_PLAIN_FLAGS.has(arg)) return null;
       continue;
     }
-    // The arguments after the program belong to the server. Credenzo reads
-    // `--from` at each position, so one after the program declines.
-    const after = effective.slice(i + 1);
-    if (after.includes('--from') || after.includes('-f')) return null;
+    // The arguments after the program belong to the server.
     positional = arg;
     break;
   }
 
+  // Each `--from` / `-f` that exists must be the one that was read above.
+  if (fromCount !== (fromToken === null ? 0 : 1)) return null;
   const token = fromToken ?? positional;
-  if (token === null) return null;
+  if (token === null || token.startsWith('-')) return null;
   if (/^(\/|\.|https?:\/\/|file:|git\+)/.test(token)) return null;
   return pypiToken(token);
 }

@@ -52,7 +52,8 @@ export interface VetResult {
   /** Package name that the command looked up. */
   name: string;
   /**
-   * malicious: an OSV MAL record covers the newest release, or the pinned version.
+   * malicious: an OSV MAL record names the pinned version, or (no pin) has a
+   *   range with no end, so it covers the newest release.
    * cve: a recorded CVE affects the pinned version, or has no fix.
    * typosquat: the name is close to a registry name.
    * archived: the registry says that the package is not maintained.
@@ -76,8 +77,14 @@ export interface VetResult {
   /** Number of recorded CVEs that are not open (fixed). */
   fixed_cve_count: number;
   /**
-   * IDs of MAL records for other releases of the package (not the newest, not
-   * the pinned one). They are a note, not the verdict.
+   * IDs of MAL records that can cover this release, where the document does
+   * not let the extension decide: no pin and a record that names releases, or
+   * a pin and a record with a version range. A Warning, not the verdict.
+   */
+  possible_malicious_ids: string[];
+  /**
+   * IDs of MAL records that name releases, none of them the pinned version.
+   * A note, not the verdict.
    */
   other_malicious_ids: string[];
   /** True when the registry says that the package is archived. */
@@ -98,6 +105,6 @@ export interface VetResult {
 
 /** Result of feature-detecting the `vet` subcommand on the installed binary. */
 export interface VetSupportInfo {
-  /** True when `credenzo vet --help` exits 0 or 1 and mentions "vet". */
+  /** True when `credenzo vet --help` exits 0 or 1 and has --ecosystem and --format. */
   supported: boolean;
 }

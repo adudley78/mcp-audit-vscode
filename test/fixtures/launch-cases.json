@@ -802,5 +802,73 @@
    "other"
   ],
   "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--with",
+   "--from",
+   "-q",
+   "pkg"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--python",
+   "-f",
+   "--from",
+   "other==1.0"
+  ],
+  "expect": null
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "run",
+   "--with",
+   "--from",
+   "-q",
+   "pkg"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--with"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--from",
+   "-q",
+   "pkg"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--from",
+   "a",
+   "b",
+   "--from",
+   "c"
+  ],
+  "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--with",
+   "-f",
+   "x",
+   "pkg"
+  ],
+  "expect": null
  }
 ]

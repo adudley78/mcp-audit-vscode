@@ -16,13 +16,16 @@
  * The extension makes no finding of its own. `verdictAdapter.ts` puts the
  * facts of the verdict document in this order:
  *  - malicious  → Error diagnostic with the MAL record IDs (a record that
- *                 covers the newest release, or the pinned version)
+ *                 names the pinned version or, with no pin, has a range
+ *                 with no end)
  *  - cve        → Warning diagnostic with the CVE IDs
  *  - typosquat  → Warning diagnostic with the registry name
  *  - archived   → Information diagnostic; the badge is not green
  *  - verified / listed / unknown → badge only, no diagnostic
- *  A MAL record for a different release is an Information diagnostic and a
- *  note on the badge. It does not replace the verdict.
+ *  A MAL record that the extension can not compare with this release (no
+ *  pin and named releases, or a pin and a range) is a Warning and a note on
+ *  the badge. A record that names only other releases than the pin is
+ *  Information. Neither replaces the verdict.
  */
 
 import * as vscode from 'vscode';
@@ -58,8 +61,12 @@ export interface VerdictBadge {
  */
 export function formatBadge(result: VetResult): VerdictBadge {
   const badge = baseBadge(result);
-  const others = Array.isArray(result.other_malicious_ids) ? result.other_malicious_ids.length : 0;
-  if (others > 0) badge.text += ' · ⚠ malicious record for a different release';
+  const size = (v: unknown): number => (Array.isArray(v) ? v.length : 0);
+  if (size(result.possible_malicious_ids) > 0) {
+    badge.text += ' · ⚠ malicious releases on record';
+  } else if (size(result.other_malicious_ids) > 0) {
+    badge.text += ' · malicious record for other releases';
+  }
   return badge;
 }
 
@@ -126,6 +133,29 @@ function count(value: unknown): number {
 function shorten(text: string, max: number): string {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+}
+
+/**
+ * The sentence for a `malicious` verdict. It says only what the record says.
+ *
+ * Exported for unit tests.
+ */
+export function maliciousText(result: VetResult): string {
+  return result.pinned
+    ? 'An OSV record names this version of the package as malicious.'
+    : 'An OSV record lists this package as malicious from a release on, with no end. It covers the newest release.';
+}
+
+/**
+ * The sentence for a MAL record that the extension can not compare with
+ * this release.
+ *
+ * Exported for unit tests.
+ */
+export function possibleText(result: VetResult): string {
+  return result.pinned
+    ? 'An OSV record lists a range of releases of this package as malicious. The extension did not compare the pinned version with the range.'
+    : 'An OSV record names releases of this package as malicious. The entry pins no version, so the release that starts can be one of them.';
 }
 
 /**
@@ -224,7 +254,7 @@ export function formatHover(result: VetResult): vscode.MarkdownString {
     case 'malicious':
       md.appendMarkdown(
         `**✖ Malicious package record**${idText ? ` — ${idText}` : ''}\n\n` +
-          `OSV lists ${result.pinned ? 'this version' : 'the newest release'} of this package as malicious. Read the record before you start this server.\n\n`
+          `${escapeMarkdown(maliciousText(result))} Read the record before you start this server.\n\n`
       );
       break;
     case 'cve':
@@ -270,12 +300,16 @@ export function formatHover(result: VetResult): vscode.MarkdownString {
     );
   }
 
-  const otherIds = Array.isArray(result.other_malicious_ids)
-    ? result.other_malicious_ids.map(escapeMarkdown).join(', ')
-    : '';
+  const joined = (v: unknown): string =>
+    Array.isArray(v) ? v.map((id) => escapeMarkdown(String(id))).join(', ') : '';
+  const possibleIds = joined(result.possible_malicious_ids);
+  if (possibleIds) {
+    md.appendMarkdown(`*Malicious releases on record:* ${possibleIds}. ${escapeMarkdown(possibleText(result))}\n\n`);
+  }
+  const otherIds = joined(result.other_malicious_ids);
   if (otherIds) {
     md.appendMarkdown(
-      `*Malicious record for a different release:* ${otherIds}. OSV lists other releases of this package as malicious, not the ${result.pinned ? 'pinned version' : 'newest release'}.\n\n`
+      `*Malicious record for other releases:* ${otherIds}. The record names releases, and the pinned version is not one of them.\n\n`
     );
   }
 
@@ -435,7 +469,10 @@ export class VerdictProvider implements vscode.Disposable {
     }
   }
 
+  private _disposed = false;
+
   dispose(): void {
+    this._disposed = true;
     for (const [, t] of this._timers) clearTimeout(t);
     this._timers.clear();
     this._diagnostics.dispose();
@@ -490,7 +527,7 @@ export class VerdictProvider implements vscode.Disposable {
       [...wanted.entries()].map(([key, pkg]) => this._lookup(binary, source, key, pkg, { online }))
     );
 
-    if (document.isClosed) return;
+    if (document.isClosed || this._disposed) return;
     this._applyVerdicts(document);
   }
 
@@ -579,7 +616,7 @@ export class VerdictProvider implements vscode.Disposable {
       if (result.verdict === 'malicious') {
         const diag = new vscode.Diagnostic(
           range,
-          `${result.name}: OSV lists ${result.pinned ? 'this version' : 'the newest release'} of this package as malicious${ids}`,
+          `${result.name}: ${maliciousText(result)}${ids}`,
           vscode.DiagnosticSeverity.Error
         );
         diag.source = VERDICT_DIAGNOSTIC_SOURCE;
@@ -622,10 +659,20 @@ export class VerdictProvider implements vscode.Disposable {
         diag.code = 'ARCHIVED';
         diagnostics.push(diag);
       }
+      if (result.possible_malicious_ids.length > 0) {
+        const diag = new vscode.Diagnostic(
+          range,
+          `${result.name}: ${possibleText(result)} (${result.possible_malicious_ids.join(', ')})`,
+          vscode.DiagnosticSeverity.Warning
+        );
+        diag.source = VERDICT_DIAGNOSTIC_SOURCE;
+        diag.code = result.possible_malicious_ids[0];
+        diagnostics.push(diag);
+      }
       if (result.other_malicious_ids.length > 0) {
         const diag = new vscode.Diagnostic(
           range,
-          `${result.name}: OSV lists other releases of this package as malicious (${result.other_malicious_ids.join(', ')}), not the ${result.pinned ? 'pinned version' : 'newest release'}`,
+          `${result.name}: an OSV record names other releases of this package as malicious, and the pinned version is not one of them (${result.other_malicious_ids.join(', ')})`,
           vscode.DiagnosticSeverity.Information
         );
         diag.source = VERDICT_DIAGNOSTIC_SOURCE;

@@ -18,6 +18,8 @@ import {
   formatHover,
   cveLabel,
   fixedLabel,
+  maliciousText,
+  possibleText,
   escapeMarkdown,
   isPlainHttpsUrl,
   isRegistryUrl,
@@ -58,6 +60,7 @@ function makeResult(overrides: Partial<VetResult> = {}): VetResult {
     unchecked_cve_count: 0,
     cve_ids: [],
     fixed_cve_count: 0,
+    possible_malicious_ids: [],
     other_malicious_ids: [],
     archived: false,
     successor: null,
@@ -190,13 +193,24 @@ suite('verdictProvider — formatBadge()', () => {
     assert.ok(badge.text.includes('✖ malicious package record — MAL-2026-1'), badge.text);
   });
 
-  test('a MAL record for a different release is a note after the verdict', () => {
-    const badge = formatBadge(
-      makeResult({ verdict: 'cve', cve_count: 1, other_malicious_ids: ['MAL-2026-1'] })
+  test('a MAL record that is not the verdict is a note after the verdict', () => {
+    const possible = formatBadge(
+      makeResult({ verdict: 'cve', cve_count: 1, possible_malicious_ids: ['MAL-2026-1'] })
     );
-    assert.ok(badge.text.includes('⚠ 1 known CVE'), badge.text);
-    assert.ok(badge.text.endsWith('malicious record for a different release'), badge.text);
-    assert.ok(!badge.text.includes('✖'), badge.text);
+    assert.ok(possible.text.includes('⚠ 1 known CVE'), possible.text);
+    assert.ok(possible.text.endsWith('· ⚠ malicious releases on record'), possible.text);
+    assert.ok(!possible.text.includes('✖'), possible.text);
+    const other = formatBadge(makeResult({ other_malicious_ids: ['MAL-2026-1'] }));
+    assert.ok(other.text.endsWith('· malicious record for other releases'), other.text);
+  });
+
+  test('the sentences about a MAL record claim only what the record says', () => {
+    assert.ok(maliciousText(makeResult({ pinned: true })).includes('names this version'));
+    assert.ok(maliciousText(makeResult()).includes('with no end'));
+    assert.ok(possibleText(makeResult({ pinned: true })).includes('did not compare'));
+    const noPin = possibleText(makeResult());
+    assert.ok(noPin.includes('pins no version'), noPin);
+    assert.ok(!noPin.includes('not the newest'), noPin);
   });
 
   test('archived badge is not the check mark, and names the successor', () => {
@@ -349,12 +363,14 @@ suite('verdictProvider — formatHover()', () => {
         archived: true,
         successor: '[x](command:y)',
         other_malicious_ids: ['MAL-2026-1'],
+        possible_malicious_ids: ['MAL-2026-2'],
       })
     );
     assert.ok(md.value.includes('*Archived:*'), md.value);
     assert.ok(!md.value.includes('[x](command:y)'), md.value);
     assert.ok(md.value.includes('MAL-2026-1'), md.value);
-    assert.ok(md.value.includes('not the newest release'), md.value);
+    assert.ok(md.value.includes('MAL-2026-2'), md.value);
+    assert.ok(md.value.includes('pins no version'), md.value);
   });
 
   test('a package name can not add Markdown to the hover', () => {
@@ -490,7 +506,7 @@ suite('verdictProvider — VerdictProvider with saved real answers', () => {
     assert.strictEqual(diags.length, 1);
     assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Error);
     assert.strictEqual(diags[0].code, 'MAL-2026-2144');
-    assert.ok(diags[0].message.includes('this version'), diags[0].message);
+    assert.ok(diags[0].message.includes('names this version'), diags[0].message);
   });
 
   test('a MAL record for other releases: the CVE Warning stays, and the record is Information', async () => {
@@ -504,11 +520,11 @@ suite('verdictProvider — VerdictProvider with saved real answers', () => {
     const warning = diags.find((d) => d.severity === vscode.DiagnosticSeverity.Warning);
     const info = diags.find((d) => d.severity === vscode.DiagnosticSeverity.Information);
     assert.ok(warning?.message.includes('17 known CVEs affect this version'), warning?.message);
-    assert.ok(info?.message.includes('other releases'), info?.message);
+    assert.ok(info?.message.includes('the pinned version is not one of them'), info?.message);
     assert.ok(!diags.some((d) => d.severity === vscode.DiagnosticSeverity.Error));
   });
 
-  test('a MAL record that does not cover the newest release gives no Error', async () => {
+  test('no pin, and a record that names releases: one Warning that makes no claim about the newest release', async () => {
     const vet = fakeVet();
     provider = makeProvider(vet.run);
     const doc = await makeDoc(config({ lite: { command: 'uvx', args: ['claude-lite'] } }));
@@ -516,8 +532,9 @@ suite('verdictProvider — VerdictProvider with saved real answers', () => {
     await wait();
     const diags = verdictDiagnostics(doc);
     assert.strictEqual(diags.length, 1);
-    assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Information);
+    assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Warning);
     assert.strictEqual(diags[0].code, 'MAL-2026-2269');
+    assert.ok(diags[0].message.includes('pins no version'), diags[0].message);
   });
 
   test('an archived package gives one Information diagnostic', async () => {

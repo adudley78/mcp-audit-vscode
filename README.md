@@ -65,8 +65,9 @@ The extension finds the package that each server installs when it starts, and as
 | `⚠ 1 known CVE with no fix recorded — CVE-…` | The entry pins no version, and a recorded CVE has no fix. Warning |
 | `⚠ possible typosquat — did you mean …?` | The name is close to a registry name. Warning |
 | `⚠ archived, not maintained — the registry names … in its place` | The registry says that the package is archived. No security fix will come. Information in the Problems panel |
-| `✖ malicious package record — MAL-…` | An OSV record lists the newest release, or the version that the entry pins, as malicious. Error |
-| `… · ⚠ malicious record for a different release` | An OSV record lists other releases as malicious, not the newest one and not the pinned one. The badge keeps its verdict. Information |
+| `✖ malicious package record — MAL-…` | An OSV record names the version that the entry pins as malicious. With no pin: the record has a range with no end, so it covers the newest release. Error |
+| `… · ⚠ malicious releases on record` | An OSV record exists, and the extension can not decide if it covers the release that starts: the entry pins no version and the record names releases, or the entry pins a version and the record has a range. The badge keeps its verdict. Warning |
+| `… · malicious record for other releases` | The entry pins a version. An OSV record names releases, and the pinned version is not one of them. Information |
 | `? not in registry — no verdict available` | The registry has no entry. This is not a finding |
 
 The hover shows the package name, the declared capabilities, and a link to the page of the package on [credenzo.io](https://credenzo.io) when it has one.
@@ -79,7 +80,7 @@ A server gets no badge when the extension can not read the package with certaint
 
 ### How it works
 
-The extension starts `credenzo vet --format json --ecosystem <npm|pypi> -- <package>` one time for each package (4 at one time). The command owns the registry lookup, the CVE match and the typosquat check. The extension only reads the answer. Results are kept for the session, and fast saves are debounced (300 ms). Lookups are offline unless you turn `mcp-audit.verdict.online` on. A change of that setting, or of the binary, makes the extension ask again.
+The extension starts `credenzo vet --format json --ecosystem <npm|pypi> -- <package>` one time for each package (4 at one time). The command owns the registry lookup, the CVE match and the typosquat check. The extension only reads the answer. Results are kept for the session, and fast saves are debounced (300 ms). Lookups are offline unless you turn `mcp-audit.verdict.online` on. After a change of that setting, or of the binary path, the extension asks again at the next open or save of a file.
 
 ### Requirements, and what you see when they are not met
 

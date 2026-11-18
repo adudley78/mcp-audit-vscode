@@ -22,6 +22,22 @@ const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const VERDICT_PAGE_RE =
   /^https:\/\/(?:mcp-audit\.dev|credenzo\.io)\/(?:v1\/verdicts\/(npm|pypi)\/([a-z0-9][a-z0-9-]{0,200})\.json|servers\/(npm|pypi)\/([a-z0-9][a-z0-9-]{0,200})\/)$/;
 
+/**
+ * One text for each release, so that "1.107" and "1.107.0", or "1.2.3" and
+ * "1.2.3+build", compare as equal: lowercase, no build part, no leading
+ * zeros in a number, no ".0" at the end of the numbers.
+ *
+ * Exported for unit tests.
+ */
+export function canonicalVersion(version: string): string {
+  const lowered = version.trim().toLowerCase().replace(/^v/, '').split('+')[0];
+  const m = /^(\d+(?:\.\d+)*)(.*)$/.exec(lowered);
+  if (!m) return lowered;
+  const numbers = m[1].split('.').map((n) => n.replace(/^0+(?=\d)/, ''));
+  while (numbers.length > 1 && numbers[numbers.length - 1] === '0') numbers.pop();
+  return numbers.join('.') + m[2];
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -80,16 +96,32 @@ export function adaptVerdict(raw: unknown, asked: LaunchPackage): VetResult | nu
     ? vulns.filter((v) => v.status !== 'affected' && v.status !== 'fixed')
     : [];
   const openIds = ids([...open, ...unchecked], 'cve');
-  // The command lists each MAL record of the name, for each release. A record
-  // is the verdict only when it covers the newest release (`latest_affected`,
-  // the case for which the command exits 1) or names the pinned version.
+  // The command lists each MAL record of the name and does not compare it
+  // with a pin. `latest_affected` is true when the record has a range with
+  // no end. `versions` is the list of releases that the record names.
+  //  - pin, and the record names it                      -> the verdict
+  //  - no pin, and a range with no end                   -> the verdict
+  //  - pin, and a range (the pin is not compared)        -> possible
+  //  - no pin, and named releases (newest is not known)  -> possible
+  //  - pin, named releases only, the pin not among them  -> other
   const malicious = rawMalicious.filter(isObject);
-  const hits = malicious.filter(
-    (m) =>
-      m.latest_affected === true ||
-      (pinned && Array.isArray(m.versions) && m.versions.includes(pkg.version))
-  );
-  const others = malicious.filter((m) => !hits.includes(m));
+  const hits: Array<Record<string, unknown>> = [];
+  const possible: Array<Record<string, unknown>> = [];
+  const others: Array<Record<string, unknown>> = [];
+  const pin = pinned ? canonicalVersion(String(pkg.version)) : null;
+  for (const m of malicious) {
+    const versions = Array.isArray(m.versions)
+      ? m.versions.filter((v): v is string => typeof v === 'string')
+      : [];
+    const hasRange =
+      m.latest_affected === true || (Array.isArray(m.ranges) && m.ranges.length > 0);
+    if (pin !== null) {
+      if (versions.some((v) => canonicalVersion(v) === pin)) hits.push(m);
+      else if (hasRange) possible.push(m);
+      else others.push(m);
+    } else if (m.latest_affected === true) hits.push(m);
+    else possible.push(m);
+  }
   const typosquatOf = text(raw.typosquat_of);
   const archived = registry.archived === true;
 
@@ -125,6 +157,7 @@ export function adaptVerdict(raw: unknown, asked: LaunchPackage): VetResult | nu
     cve_count: open.length,
     cve_ids: verdict === 'malicious' ? ids(hits, 'id') : openIds,
     unchecked_cve_count: unchecked.length,
+    possible_malicious_ids: ids(possible, 'id'),
     other_malicious_ids: ids(others, 'id'),
     archived,
     successor: text(registry.successor),
