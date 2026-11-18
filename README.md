@@ -114,7 +114,7 @@ Open the command palette (`Cmd/Ctrl+Shift+P`) and search for **Credenzo**:
 
 | Setting | Default | Description |
 |---|---|---|
-| `mcp-audit.binaryPath` | `""` | Absolute path to the binary. Empty = auto-detect from PATH. |
+| `mcp-audit.binaryPath` | `""` | Absolute path to the binary. Empty = auto-detect from PATH. User settings only: a workspace can not set it. |
 | `mcp-audit.severityThreshold` | `"info"` | Minimum severity to report (`info`, `low`, `medium`, `high`, `critical`). |
 | `mcp-audit.runOnSave` | `true` | Re-scan automatically on save. |
 | `mcp-audit.runOnOpen` | `true` | Scan when a config file is opened. |
@@ -164,7 +164,7 @@ All security detection runs in the `credenzo` binary (Python). The extension is 
 ## Troubleshooting
 
 **"Credenzo binary not found"**
-Install `credenzo` with `pip install credenzo`, or set `mcp-audit.binaryPath` in your settings to the full path of the binary. Check `View → Output → Credenzo` for details.
+Install `credenzo` with `pip install credenzo`, or set `mcp-audit.binaryPath` in your user settings to the full path of the binary. Check `View → Output → Credenzo` for details.
 
 **No squiggles appear on open files**
 Make sure `mcp-audit.runOnOpen` is `true`. Run `Credenzo: Scan current file` from the command palette and check the Output channel for errors. Confirm the file name matches one of the supported names above.
