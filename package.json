@@ -100,7 +100,8 @@
         "mcp-audit.verdict.online": {
           "type": "boolean",
           "default": false,
-          "description": "Pass --online to credenzo vet for live registry lookups. Off by default (uses the bundled registry snapshot). Requires a release that has the vet command."
+          "scope": "machine",
+          "description": "Pass --online to credenzo vet for live registry lookups. Off by default (uses the bundled registry snapshot). Requires a release that has the vet command. Set it in your user settings: a workspace can not turn network lookups on."
         }
       }
     }

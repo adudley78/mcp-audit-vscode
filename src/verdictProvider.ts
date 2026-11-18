@@ -100,7 +100,11 @@ export function formatBadge(result: VetResult): VerdictBadge {
 export function escapeMarkdown(text: string): string {
   return String(text)
     .replace(/[\r\n]+/g, ' ')
-    .replace(/[\\`*_[\]()<>!|~#]/g, '\\$&');
+    .replace(/[\\`*_[\]()<>!|~#]/g, '\\$&')
+    // A bare address must stay text: the renderer makes a link from
+    // "https://…" and from "www.…".
+    .replace(/:\/\//g, ':\\/\\/')
+    .replace(/\bwww\./gi, 'www\\.');
 }
 
 /**
@@ -113,15 +117,42 @@ export function isPlainHttpsUrl(url: string): boolean {
   return /^https:\/\/[^\s()<>"'`\\]+$/.test(url);
 }
 
+/** The only hosts that the hover links to. */
+const REGISTRY_HOSTS = new Set(['credenzo.io', 'mcp-audit.dev']);
+
+/**
+ * True for a plain https URL on a Credenzo host.
+ *
+ * Exported for unit tests.
+ */
+export function isRegistryUrl(url: string): boolean {
+  if (!isPlainHttpsUrl(url)) return false;
+  try {
+    const parsed = new URL(url);
+    return (
+      REGISTRY_HOSTS.has(parsed.hostname) &&
+      parsed.username === '' &&
+      parsed.password === '' &&
+      parsed.port === ''
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Build the hover MarkdownString shown when the developer hovers over the
- * decorated server-key range. Includes capabilities and mcp-audit.dev link.
+ * decorated server-key range. Includes capabilities and the registry link.
  */
 export function formatHover(result: VetResult): vscode.MarkdownString {
   // Not trusted: the hover has no command link, and a trusted hover would let
   // text from the registry data run an editor command when the user selects it.
   const md = new vscode.MarkdownString(undefined, true);
   md.isTrusted = false;
+  // The count goes into Markdown, so it must be a number.
+  const cveCount = Number.isFinite(Number(result.cve_count))
+    ? Math.max(0, Math.trunc(Number(result.cve_count)))
+    : 0;
 
   switch (result.verdict) {
     case 'verified': {
@@ -129,9 +160,9 @@ export function formatHover(result: VetResult): vscode.MarkdownString {
         ? ` (${escapeMarkdown(result.maintainer)})`
         : '';
       const cveLabel =
-        result.cve_count === 0
+        cveCount === 0
           ? '0 known CVEs'
-          : `${result.cve_count} known CVE${result.cve_count !== 1 ? 's' : ''}`;
+          : `${cveCount} known CVE${cveCount !== 1 ? 's' : ''}`;
       md.appendMarkdown(`**✓ verified${maintainer}** · ${cveLabel}\n\n`);
       break;
     }
@@ -140,7 +171,7 @@ export function formatHover(result: VetResult): vscode.MarkdownString {
         result.cve_ids.length > 0
           ? result.cve_ids.map(escapeMarkdown).join(', ')
           : 'see registry';
-      const n = result.cve_count;
+      const n = cveCount;
       md.appendMarkdown(
         `**⚠ ${n} known CVE${n !== 1 ? 's' : ''}** — ${ids}\n\n`
       );
@@ -165,7 +196,7 @@ export function formatHover(result: VetResult): vscode.MarkdownString {
     );
   }
 
-  if (result.registry_url && isPlainHttpsUrl(result.registry_url)) {
+  if (result.registry_url && isRegistryUrl(result.registry_url)) {
     md.appendMarkdown(`[View the registry entry](${result.registry_url})`);
   }
 

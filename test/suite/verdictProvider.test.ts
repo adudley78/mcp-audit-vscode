@@ -19,6 +19,7 @@ import {
   formatHover,
   escapeMarkdown,
   isPlainHttpsUrl,
+  isRegistryUrl,
   buildDecorationOptions,
   VerdictProvider,
 } from '../../src/verdictProvider';
@@ -135,7 +136,7 @@ suite('verdictProvider — formatHover()', () => {
     assert.strictEqual(formatHover(makeResult()).isTrusted, false);
   });
 
-  test('registry text can not add a link or an image to the hover', () => {
+  test('registry text can not add a Markdown link, an image or HTML to the hover', () => {
     const md = formatHover(
       makeResult({
         maintainer: '[x](command:workbench.action.terminal.new)',
@@ -167,6 +168,41 @@ suite('verdictProvider — formatHover()', () => {
       assert.strictEqual(isPlainHttpsUrl(bad), false, bad);
     }
     assert.strictEqual(isPlainHttpsUrl('https://credenzo.io/servers/x/'), true);
+  });
+
+  test('a bare address in registry text is not left as a link source', () => {
+    assert.strictEqual(
+      escapeMarkdown('see https://evil.example/x and www.evil.example'),
+      'see https:\\/\\/evil.example/x and www\\.evil.example'
+    );
+  });
+
+  test('the hover links only to a Credenzo host', () => {
+    for (const ok of [
+      'https://credenzo.io/servers/x/',
+      'https://mcp-audit.dev/v1/verdicts/npm/x.json',
+    ]) {
+      assert.strictEqual(isRegistryUrl(ok), true, ok);
+    }
+    for (const bad of [
+      'https://evil.example/x',
+      'https://credenzo.io.evil.example/x',
+      'https://user@credenzo.io/x',
+      'https://credenzo.io:8443/x',
+      'http://credenzo.io/x',
+    ]) {
+      assert.strictEqual(isRegistryUrl(bad), false, bad);
+      const md = formatHover(makeResult({ registry_url: bad }));
+      assert.ok(!md.value.includes('View the registry entry'), bad);
+    }
+  });
+
+  test('a count that is not a number is shown as 0', () => {
+    const md = formatHover(
+      makeResult({ verdict: 'cve', cve_count: '[x](command:y)' as unknown as number, cve_ids: [] })
+    );
+    assert.ok(!md.value.includes('command:y'), md.value);
+    assert.ok(md.value.includes('0 known CVEs'), md.value);
   });
 
   test('escapeMarkdown keeps a CVE ID readable', () => {
