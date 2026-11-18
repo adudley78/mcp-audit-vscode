@@ -111,21 +111,22 @@ suite('verdictAdapter — saved real answers', () => {
       const answer = { ...doc, package: { ...(doc.package as object), version: pin } };
       assert.strictEqual(adaptVerdict(answer, asked)?.verdict, 'malicious', pin);
     }
-    assert.strictEqual(canonicalVersion('2.1.1+x', 'npm'), canonicalVersion('2.1.1', 'npm'));
-    assert.strictEqual(canonicalVersion('1.0.0', 'npm'), '1');
-    assert.strictEqual(canonicalVersion('1.0.0-rc1', 'npm'), '1-rc1');
-    assert.strictEqual(canonicalVersion('0.0', 'pypi'), '0');
-    assert.strictEqual(canonicalVersion('1.0RC1', 'pypi'), canonicalVersion('1.0rc1', 'pypi'));
+    assert.strictEqual(canonicalVersion('2.1.1+x'), canonicalVersion('2.1.1'));
+    assert.strictEqual(canonicalVersion('1.0.0'), '1');
+    assert.strictEqual(canonicalVersion('1.0.0-rc1'), '1-rc1');
+    assert.strictEqual(canonicalVersion('0.0'), '0');
+    // As Credenzo compares: without case.
+    assert.strictEqual(canonicalVersion('0.140.0-BETA.0'), canonicalVersion('0.140.0-beta.0'));
     // Two different releases must never compare as equal.
     for (const [a, b] of [
       ['1.0.0-rc1', '1.0.0'],
       ['1.10', '1.1'],
-      ['1.0.0-RC1', '1.0.0-rc1'],
-      ['1.0.0-Beta', '1.0.0-beta'],
+      ['1.0.0-rc1', '1.0.0-rc2'],
       ['10.0', '1.0'],
       ['1.0.1', '1.0.10'],
+      ['1.0.4-2', '1.0.4'],
     ]) {
-      assert.notStrictEqual(canonicalVersion(a, 'npm'), canonicalVersion(b, 'npm'), `${a} ${b}`);
+      assert.notStrictEqual(canonicalVersion(a), canonicalVersion(b), `${a} ${b}`);
     }
   });
 
@@ -134,6 +135,9 @@ suite('verdictAdapter — saved real answers', () => {
     const blanket = [
       [[{ introduced: '0' }]],
       [{ type: 'ECOSYSTEM', events: [{ introduced: '0' }] }],
+      // The ranges of a record are a union: one blanket range is enough.
+      [[{ introduced: '1.0.0' }], [{ introduced: '0' }]],
+      [[{ introduced: '0' }], [{ introduced: '5.0.0' }, { fixed: '6.0.0' }]],
     ];
     for (const ranges of blanket) {
       const records = (doc.malicious as Array<Record<string, unknown>>).map((m) => ({
@@ -193,7 +197,11 @@ suite('verdictAdapter — saved real answers', () => {
       { latest_affected: true },
       { ranges: [{ type: 'ECOSYSTEM', events: [{ introduced: '10.0.1' }] }] },
       { ranges: [[{ introduced: '0' }, { fixed: '2.0.0' }]] },
-      { ranges: [[{ introduced: '0' }], [{ introduced: '5.0.0' }, { fixed: '6.0.0' }]] },
+      // An ignored blanket range does not hide a second range.
+      {
+        ranges: [[{ introduced: '0' }], [{ introduced: '1.0.0' }, { fixed: '2.0.0' }]],
+        blanket_range_ignored: true,
+      },
     ]) {
       const records = (doc.malicious as Array<Record<string, unknown>>).map((m) => ({
         ...m,

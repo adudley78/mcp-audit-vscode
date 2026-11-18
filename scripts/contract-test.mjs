@@ -53,6 +53,10 @@ const VERDICTS = [
   [{ command: 'npx', args: ['@modelcontextprotocol/server-filesytem'] }, ['typosquat']],
   [{ command: 'npx', args: ['not-a-real-pkg-zz'] }, ['unknown']],
   [{ command: 'uvx', args: ['litellm==1.82.7'] }, ['malicious']],
+  // A record that covers each release: a pin on a release that it does not name.
+  [{ command: 'uvx', args: ['esqmcpaypallgtb==1.0.0'] }, ['malicious']],
+  // The same, where the blanket range is one of two ranges.
+  [{ command: 'npx', args: ['glean-mcp-server@97.98.99'] }, ['malicious']],
   [{ command: 'npx', args: ['@modelcontextprotocol/server-github'] }, ['archived', 'cve']],
 ];
 

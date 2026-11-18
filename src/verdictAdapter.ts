@@ -24,16 +24,17 @@ const VERDICT_PAGE_RE =
 
 /**
  * One text for each release, so that "1.107" and "1.107.0", or "1.2.3" and
- * "1.2.3+build", compare as equal: no build part, no leading zeros in a
- * number, no ".0" at the end of the numbers. PyPI versions are compared in
- * lowercase. npm pre-release names keep their case (1.0.0-RC1 and 1.0.0-rc1
- * are two releases).
+ * "1.2.3+build", compare as equal: lowercase, no build part, no leading
+ * zeros in a number, no ".0" at the end of the numbers.
+ *
+ * Lowercase for npm too: Credenzo compares versions without case
+ * (`_same_version` in registry/malicious.py), and the extension must not
+ * give a lower warning than the command for the same pin.
  *
  * Exported for unit tests.
  */
-export function canonicalVersion(version: string, ecosystem: 'npm' | 'pypi'): string {
-  let v = version.trim().replace(/^v/i, '').split('+')[0];
-  if (ecosystem === 'pypi') v = v.toLowerCase();
+export function canonicalVersion(version: string): string {
+  const v = version.trim().toLowerCase().replace(/^v/, '').split('+')[0];
   const m = /^(\d+(?:\.\d+)*)(.*)$/.exec(v);
   if (!m) return v;
   const numbers = m[1].split('.').map((n) => n.replace(/^0+(?=\d)/, ''));
@@ -42,17 +43,14 @@ export function canonicalVersion(version: string, ecosystem: 'npm' | 'pypi'): st
 }
 
 /**
- * True when each range of a MAL record is "from release 0, with no end":
- * the record covers each release, so no version has to be compared.
+ * True for a range of a MAL record that is "from release 0, with no end".
+ * The ranges of a record are a union, so one such range covers each release.
  */
-function coversEachRelease(ranges: unknown[]): boolean {
-  if (ranges.length === 0) return false;
-  return ranges.every((range) => {
-    const events = Array.isArray(range) ? range : isObject(range) ? range.events : null;
-    if (!Array.isArray(events) || events.length !== 1 || !isObject(events[0])) return false;
-    const keys = Object.keys(events[0]);
-    return keys.length === 1 && keys[0] === 'introduced' && events[0].introduced === '0';
-  });
+function isBlanketRange(range: unknown): boolean {
+  const events = Array.isArray(range) ? range : isObject(range) ? range.events : null;
+  if (!Array.isArray(events) || events.length !== 1 || !isObject(events[0])) return false;
+  const keys = Object.keys(events[0]);
+  return keys.length === 1 && keys[0] === 'introduced' && events[0].introduced === '0';
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -128,18 +126,21 @@ export function adaptVerdict(raw: unknown, asked: LaunchPackage): VetResult | nu
   const hits: Array<Record<string, unknown>> = [];
   const possible: Array<Record<string, unknown>> = [];
   const others: Array<Record<string, unknown>> = [];
-  const pin = pinned ? canonicalVersion(String(pkg.version), asked.ecosystem) : null;
+  const pin = pinned ? canonicalVersion(String(pkg.version)) : null;
   for (const m of malicious) {
     const versions = Array.isArray(m.versions)
       ? m.versions.filter((v): v is string => typeof v === 'string')
       : [];
-    const ranges =
-      m.blanket_range_ignored === true || !Array.isArray(m.ranges) ? [] : m.ranges;
+    const ranges = Array.isArray(m.ranges) ? m.ranges : [];
+    const blanket = ranges.filter(isBlanketRange);
+    const otherRanges = ranges.filter((r) => !isBlanketRange(r));
+    // The command does not use a blanket range that it marks as ignored.
+    const coversEach = blanket.length > 0 && m.blanket_range_ignored !== true;
     const openEnd = m.latest_affected === true;
     if (pin !== null) {
-      if (versions.some((v) => canonicalVersion(v, asked.ecosystem) === pin)) hits.push(m);
-      else if (coversEachRelease(ranges)) hits.push(m);
-      else if (openEnd || ranges.length > 0) possible.push(m);
+      if (versions.some((v) => canonicalVersion(v) === pin)) hits.push(m);
+      else if (coversEach) hits.push(m);
+      else if (otherRanges.length > 0 || (openEnd && blanket.length === 0)) possible.push(m);
       else others.push(m);
     } else if (openEnd) hits.push(m);
     else possible.push(m);
