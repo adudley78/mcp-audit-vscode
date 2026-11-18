@@ -109,13 +109,9 @@ function pypiToken(token: string): LaunchPackage | null {
 
   let version: string | null = null;
   if (end !== -1) {
-    const rest = token.slice(end);
-    const pinned = rest.startsWith('==')
-      ? rest.slice(2)
-      : rest.startsWith('@')
-        ? rest.slice(1)
-        : '';
-    if (pinned && PYPI_EXACT_VERSION_RE.test(pinned)) version = pinned;
+    // `pkg==1.2`, `pkg@1.2`, and the same after extras: `pkg[cli]==1.2`.
+    const m = /^(?:\[[A-Za-z0-9,._-]*\])?(?:==|@)(.+)$/.exec(token.slice(end));
+    if (m && PYPI_EXACT_VERSION_RE.test(m[1])) version = m[1];
   }
   return { ecosystem: 'pypi', name, version };
 }

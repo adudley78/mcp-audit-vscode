@@ -16,8 +16,8 @@
  * The extension makes no finding of its own. `verdictAdapter.ts` puts the
  * facts of the verdict document in this order:
  *  - malicious  → Error diagnostic with the MAL record IDs (a record that
- *                 names the pinned version or, with no pin, has a range
- *                 with no end)
+ *                 names the pinned version or covers each release or,
+ *                 with no pin, has a range with no end)
  *  - cve        → Warning diagnostic with the CVE IDs
  *  - typosquat  → Warning diagnostic with the registry name
  *  - archived   → Information diagnostic; the badge is not green
@@ -142,8 +142,8 @@ function shorten(text: string, max: number): string {
  */
 export function maliciousText(result: VetResult): string {
   return result.pinned
-    ? 'An OSV record names this version of the package as malicious.'
-    : 'An OSV record lists this package as malicious from a release on, with no end. It covers the newest release.';
+    ? 'An OSV record lists this version of the package as malicious.'
+    : 'An OSV record lists each release of this package from one release on, with no end, as malicious. The entry pins no version.';
 }
 
 /**

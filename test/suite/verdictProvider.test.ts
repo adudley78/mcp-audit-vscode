@@ -205,8 +205,10 @@ suite('verdictProvider — formatBadge()', () => {
   });
 
   test('the sentences about a MAL record claim only what the record says', () => {
-    assert.ok(maliciousText(makeResult({ pinned: true })).includes('names this version'));
+    assert.ok(maliciousText(makeResult({ pinned: true })).includes('lists this version'));
     assert.ok(maliciousText(makeResult()).includes('with no end'));
+    assert.ok(maliciousText(makeResult()).includes('pins no version'));
+    assert.ok(!maliciousText(makeResult()).includes('newest'));
     assert.ok(possibleText(makeResult({ pinned: true })).includes('did not compare'));
     const noPin = possibleText(makeResult());
     assert.ok(noPin.includes('pins no version'), noPin);
@@ -506,7 +508,7 @@ suite('verdictProvider — VerdictProvider with saved real answers', () => {
     assert.strictEqual(diags.length, 1);
     assert.strictEqual(diags[0].severity, vscode.DiagnosticSeverity.Error);
     assert.strictEqual(diags[0].code, 'MAL-2026-2144');
-    assert.ok(diags[0].message.includes('names this version'), diags[0].message);
+    assert.ok(diags[0].message.includes('lists this version'), diags[0].message);
   });
 
   test('a MAL record for other releases: the CVE Warning stays, and the record is Information', async () => {

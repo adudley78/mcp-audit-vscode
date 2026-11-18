@@ -52,8 +52,8 @@ export interface VetResult {
   /** Package name that the command looked up. */
   name: string;
   /**
-   * malicious: an OSV MAL record names the pinned version, or (no pin) has a
-   *   range with no end, so it covers the newest release.
+   * malicious: an OSV MAL record names the pinned version or covers each
+   *   release, or (no pin) has a range with no end.
    * cve: a recorded CVE affects the pinned version, or has no fix.
    * typosquat: the name is close to a registry name.
    * archived: the registry says that the package is not maintained.

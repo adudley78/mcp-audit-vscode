@@ -24,18 +24,35 @@ const VERDICT_PAGE_RE =
 
 /**
  * One text for each release, so that "1.107" and "1.107.0", or "1.2.3" and
- * "1.2.3+build", compare as equal: lowercase, no build part, no leading
- * zeros in a number, no ".0" at the end of the numbers.
+ * "1.2.3+build", compare as equal: no build part, no leading zeros in a
+ * number, no ".0" at the end of the numbers. PyPI versions are compared in
+ * lowercase. npm pre-release names keep their case (1.0.0-RC1 and 1.0.0-rc1
+ * are two releases).
  *
  * Exported for unit tests.
  */
-export function canonicalVersion(version: string): string {
-  const lowered = version.trim().toLowerCase().replace(/^v/, '').split('+')[0];
-  const m = /^(\d+(?:\.\d+)*)(.*)$/.exec(lowered);
-  if (!m) return lowered;
+export function canonicalVersion(version: string, ecosystem: 'npm' | 'pypi'): string {
+  let v = version.trim().replace(/^v/i, '').split('+')[0];
+  if (ecosystem === 'pypi') v = v.toLowerCase();
+  const m = /^(\d+(?:\.\d+)*)(.*)$/.exec(v);
+  if (!m) return v;
   const numbers = m[1].split('.').map((n) => n.replace(/^0+(?=\d)/, ''));
   while (numbers.length > 1 && numbers[numbers.length - 1] === '0') numbers.pop();
   return numbers.join('.') + m[2];
+}
+
+/**
+ * True when each range of a MAL record is "from release 0, with no end":
+ * the record covers each release, so no version has to be compared.
+ */
+function coversEachRelease(ranges: unknown[]): boolean {
+  if (ranges.length === 0) return false;
+  return ranges.every((range) => {
+    const events = Array.isArray(range) ? range : isObject(range) ? range.events : null;
+    if (!Array.isArray(events) || events.length !== 1 || !isObject(events[0])) return false;
+    const keys = Object.keys(events[0]);
+    return keys.length === 1 && keys[0] === 'introduced' && events[0].introduced === '0';
+  });
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -98,28 +115,33 @@ export function adaptVerdict(raw: unknown, asked: LaunchPackage): VetResult | nu
   const openIds = ids([...open, ...unchecked], 'cve');
   // The command lists each MAL record of the name and does not compare it
   // with a pin. `latest_affected` is true when the record has a range with
-  // no end. `versions` is the list of releases that the record names.
-  //  - pin, and the record names it                      -> the verdict
-  //  - no pin, and a range with no end                   -> the verdict
-  //  - pin, and a range (the pin is not compared)        -> possible
-  //  - no pin, and named releases (newest is not known)  -> possible
-  //  - pin, named releases only, the pin not among them  -> other
+  // no end. `versions` is the list of releases that the record names. The
+  // command sets `blanket_range_ignored` when it does not use a range that
+  // covers each release (a registry package with one bad release).
+  //  - pin, and the record names it                         -> the verdict
+  //  - pin, and the record covers each release              -> the verdict
+  //  - no pin, and a range with no end                      -> the verdict
+  //  - pin, and a different range (the pin is not compared) -> possible
+  //  - no pin, and named releases (newest is not known)     -> possible
+  //  - pin, named releases only, the pin not among them     -> other
   const malicious = rawMalicious.filter(isObject);
   const hits: Array<Record<string, unknown>> = [];
   const possible: Array<Record<string, unknown>> = [];
   const others: Array<Record<string, unknown>> = [];
-  const pin = pinned ? canonicalVersion(String(pkg.version)) : null;
+  const pin = pinned ? canonicalVersion(String(pkg.version), asked.ecosystem) : null;
   for (const m of malicious) {
     const versions = Array.isArray(m.versions)
       ? m.versions.filter((v): v is string => typeof v === 'string')
       : [];
-    const hasRange =
-      m.latest_affected === true || (Array.isArray(m.ranges) && m.ranges.length > 0);
+    const ranges =
+      m.blanket_range_ignored === true || !Array.isArray(m.ranges) ? [] : m.ranges;
+    const openEnd = m.latest_affected === true;
     if (pin !== null) {
-      if (versions.some((v) => canonicalVersion(v) === pin)) hits.push(m);
-      else if (hasRange) possible.push(m);
+      if (versions.some((v) => canonicalVersion(v, asked.ecosystem) === pin)) hits.push(m);
+      else if (coversEachRelease(ranges)) hits.push(m);
+      else if (openEnd || ranges.length > 0) possible.push(m);
       else others.push(m);
-    } else if (m.latest_affected === true) hits.push(m);
+    } else if (openEnd) hits.push(m);
     else possible.push(m);
   }
   const typosquatOf = text(raw.typosquat_of);

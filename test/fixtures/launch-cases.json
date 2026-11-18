@@ -428,7 +428,7 @@
   "expect": {
    "ecosystem": "pypi",
    "name": "mcp-server-fetch",
-   "version": null
+   "version": "1.0"
   }
  },
  {
@@ -870,5 +870,38 @@
    "pkg"
   ],
   "expect": null
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch[a,b]@2.1"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": "2.1"
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch[extra]>=1.0"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch==1.0+local"
+  ],
+  "expect": {
+   "ecosystem": "pypi",
+   "name": "mcp-server-fetch",
+   "version": null
+  }
  }
 ]

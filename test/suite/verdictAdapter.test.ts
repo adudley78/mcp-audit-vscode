@@ -111,12 +111,50 @@ suite('verdictAdapter — saved real answers', () => {
       const answer = { ...doc, package: { ...(doc.package as object), version: pin } };
       assert.strictEqual(adaptVerdict(answer, asked)?.verdict, 'malicious', pin);
     }
-    assert.strictEqual(canonicalVersion('2.1.1+x'), canonicalVersion('2.1.1'));
-    assert.strictEqual(canonicalVersion('1.0.0'), '1');
-    assert.strictEqual(canonicalVersion('1.0.0-rc1'), '1-rc1');
-    assert.notStrictEqual(canonicalVersion('1.0.0-rc1'), canonicalVersion('1.0.0'));
-    assert.notStrictEqual(canonicalVersion('1.10'), canonicalVersion('1.1'));
-    assert.strictEqual(canonicalVersion('0.0'), '0');
+    assert.strictEqual(canonicalVersion('2.1.1+x', 'npm'), canonicalVersion('2.1.1', 'npm'));
+    assert.strictEqual(canonicalVersion('1.0.0', 'npm'), '1');
+    assert.strictEqual(canonicalVersion('1.0.0-rc1', 'npm'), '1-rc1');
+    assert.strictEqual(canonicalVersion('0.0', 'pypi'), '0');
+    assert.strictEqual(canonicalVersion('1.0RC1', 'pypi'), canonicalVersion('1.0rc1', 'pypi'));
+    // Two different releases must never compare as equal.
+    for (const [a, b] of [
+      ['1.0.0-rc1', '1.0.0'],
+      ['1.10', '1.1'],
+      ['1.0.0-RC1', '1.0.0-rc1'],
+      ['1.0.0-Beta', '1.0.0-beta'],
+      ['10.0', '1.0'],
+      ['1.0.1', '1.0.10'],
+    ]) {
+      assert.notStrictEqual(canonicalVersion(a, 'npm'), canonicalVersion(b, 'npm'), `${a} ${b}`);
+    }
+  });
+
+  test('a pin, and a record that covers each release: the verdict, with no comparison', () => {
+    const doc = fixture('malicious-not-this');
+    const blanket = [
+      [[{ introduced: '0' }]],
+      [{ type: 'ECOSYSTEM', events: [{ introduced: '0' }] }],
+    ];
+    for (const ranges of blanket) {
+      const records = (doc.malicious as Array<Record<string, unknown>>).map((m) => ({
+        ...m,
+        versions: [],
+        ranges,
+        latest_affected: true,
+      }));
+      const r = adaptVerdict({ ...doc, malicious: records }, pypi('litellm', '1.83.0'));
+      assert.strictEqual(r?.verdict, 'malicious', JSON.stringify(ranges));
+    }
+    // The command says that it does not use the range: it is not the verdict.
+    const ignored = (doc.malicious as Array<Record<string, unknown>>).map((m) => ({
+      ...m,
+      ranges: [[{ introduced: '0' }]],
+      blanket_range_ignored: true,
+    }));
+    const r = adaptVerdict({ ...doc, malicious: ignored }, pypi('litellm', '1.83.0'));
+    assert.strictEqual(r?.verdict, 'cve');
+    assert.deepStrictEqual(r?.other_malicious_ids, ['MAL-2026-2144']);
+    assert.deepStrictEqual(r?.possible_malicious_ids, []);
   });
 
   test('a MAL record for other releases is a note; the CVEs stay the verdict', () => {
@@ -154,6 +192,8 @@ suite('verdictAdapter — saved real answers', () => {
     for (const change of [
       { latest_affected: true },
       { ranges: [{ type: 'ECOSYSTEM', events: [{ introduced: '10.0.1' }] }] },
+      { ranges: [[{ introduced: '0' }, { fixed: '2.0.0' }]] },
+      { ranges: [[{ introduced: '0' }], [{ introduced: '5.0.0' }, { fixed: '6.0.0' }]] },
     ]) {
       const records = (doc.malicious as Array<Record<string, unknown>>).map((m) => ({
         ...m,

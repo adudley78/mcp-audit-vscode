@@ -65,7 +65,7 @@ The extension finds the package that each server installs when it starts, and as
 | `⚠ 1 known CVE with no fix recorded — CVE-…` | The entry pins no version, and a recorded CVE has no fix. Warning |
 | `⚠ possible typosquat — did you mean …?` | The name is close to a registry name. Warning |
 | `⚠ archived, not maintained — the registry names … in its place` | The registry says that the package is archived. No security fix will come. Information in the Problems panel |
-| `✖ malicious package record — MAL-…` | An OSV record names the version that the entry pins as malicious. With no pin: the record has a range with no end, so it covers the newest release. Error |
+| `✖ malicious package record — MAL-…` | An OSV record lists the version that the entry pins as malicious (it names the version, or it covers each release). With no pin: the record lists each release from one release on, with no end. Error |
 | `… · ⚠ malicious releases on record` | An OSV record exists, and the extension can not decide if it covers the release that starts: the entry pins no version and the record names releases, or the entry pins a version and the record has a range. The badge keeps its verdict. Warning |
 | `… · malicious record for other releases` | The entry pins a version. An OSV record names releases, and the pinned version is not one of them. Information |
 | `? not in registry — no verdict available` | The registry has no entry. This is not a finding |
