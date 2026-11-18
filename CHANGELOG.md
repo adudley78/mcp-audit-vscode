@@ -9,6 +9,15 @@
 - The install hint says `pip install credenzo`. It said `pip install mcp-audit`, which is a different package.
 - Repository links point to `adudley78/mcp-audit-vscode` and `adudley78/mcp-audit`.
 
+### Security
+
+- **A workspace can no longer set the path of the binary.** `mcp-audit.binaryPath` now has machine scope. Before, a `.vscode/settings.json` in a repository that you trust could point the extension at a program in that repository, and the extension started it when you opened an MCP configuration file. `mcp-audit.verdict.online` has machine scope too, so a workspace can not turn network lookups on. If you set this path in workspace settings, move it to your user settings.
+- **The extension says that it does not run in an untrusted workspace.** This was already the default behaviour of VS Code for an extension that says nothing. It is now stated in the manifest.
+- **The verdict hover is not trusted Markdown.** Text from the registry data is escaped, and the link is shown only when it is a plain `https://` URL on `credenzo.io` or `mcp-audit.dev`. A registry entry can not put a command link or an image in the hover.
+- **A server name can not be read as an option.** The extension passes the server names after `--` when it starts `credenzo vet`, and it looks for the command from your home directory, not from the workspace folder.
+- The build tools are updated. `npm audit` reported 28 advisories in development dependencies; 12 remain, and none of them has a release that corrects it without a different advisory. The extension itself ships one dependency, `jsonc-parser`.
+- Each GitHub Action in the workflows is pinned to a commit, and the CI token can only read.
+
 ### Not changed
 
 - The extension id (`mcp-audit.mcp-audit-vscode`), the command ids (`mcp-audit.scanCurrentFile`, …) and the settings keys (`mcp-audit.binaryPath`, …). Installed extensions, keybindings and settings continue to work.

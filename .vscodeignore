@@ -20,4 +20,3 @@ out-test/**
 
 # Misc
 .gitignore
-cursor-prompts/**

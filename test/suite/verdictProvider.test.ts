@@ -17,6 +17,9 @@ import * as sinon from 'sinon';
 import {
   formatBadge,
   formatHover,
+  escapeMarkdown,
+  isPlainHttpsUrl,
+  isRegistryUrl,
   buildDecorationOptions,
   VerdictProvider,
 } from '../../src/verdictProvider';
@@ -127,6 +130,84 @@ suite('verdictProvider — formatHover()', () => {
     assert.ok(md.value.includes('Not in registry'), md.value);
     assert.ok(!md.value.includes('Capabilities:'), md.value);
     assert.ok(!md.value.includes('mcp-audit.dev'), md.value);
+  });
+
+  test('hover is not trusted, so a command link can not run', () => {
+    assert.strictEqual(formatHover(makeResult()).isTrusted, false);
+  });
+
+  test('registry text can not add a Markdown link, an image or HTML to the hover', () => {
+    const md = formatHover(
+      makeResult({
+        maintainer: '[x](command:workbench.action.terminal.new)',
+        capabilities: '![i](http://example.test/p.png) <b>x</b>',
+      })
+    );
+    assert.ok(!md.value.includes('[x](command:'), md.value);
+    assert.ok(!md.value.includes('![i]('), md.value);
+    assert.ok(!md.value.includes('<b>'), md.value);
+    assert.ok(md.value.includes('\\[x\\]\\(command:'), md.value);
+  });
+
+  test('typosquat suggestion can not leave its inline code', () => {
+    const md = formatHover(
+      makeResult({ verdict: 'typosquat', typosquat_suggestion: 'a` [x](command:y) `b' })
+    );
+    assert.ok(md.value.includes('`a [x](command:y) b`'), md.value);
+  });
+
+  test('a registry link that is not a plain https URL is left out', () => {
+    for (const bad of [
+      'command:workbench.action.terminal.new',
+      'http://example.test/x',
+      'https://example.test/x) [y](command:z',
+      'javascript:alert(1)',
+    ]) {
+      const md = formatHover(makeResult({ registry_url: bad }));
+      assert.ok(!md.value.includes('View the registry entry'), bad);
+      assert.strictEqual(isPlainHttpsUrl(bad), false, bad);
+    }
+    assert.strictEqual(isPlainHttpsUrl('https://credenzo.io/servers/x/'), true);
+  });
+
+  test('a bare address in registry text is not left as a link source', () => {
+    assert.strictEqual(
+      escapeMarkdown('see https://evil.example/x and www.evil.example'),
+      'see https:\\/\\/evil.example/x and www\\.evil.example'
+    );
+  });
+
+  test('the hover links only to a Credenzo host', () => {
+    for (const ok of [
+      'https://credenzo.io/servers/x/',
+      'https://mcp-audit.dev/v1/verdicts/npm/x.json',
+    ]) {
+      assert.strictEqual(isRegistryUrl(ok), true, ok);
+    }
+    for (const bad of [
+      'https://evil.example/x',
+      'https://credenzo.io.evil.example/x',
+      'https://user@credenzo.io/x',
+      'https://credenzo.io:8443/x',
+      'http://credenzo.io/x',
+    ]) {
+      assert.strictEqual(isRegistryUrl(bad), false, bad);
+      const md = formatHover(makeResult({ registry_url: bad }));
+      assert.ok(!md.value.includes('View the registry entry'), bad);
+    }
+  });
+
+  test('a count that is not a number is shown as 0', () => {
+    const md = formatHover(
+      makeResult({ verdict: 'cve', cve_count: '[x](command:y)' as unknown as number, cve_ids: [] })
+    );
+    assert.ok(!md.value.includes('command:y'), md.value);
+    assert.ok(md.value.includes('0 known CVEs'), md.value);
+  });
+
+  test('escapeMarkdown keeps a CVE ID readable', () => {
+    assert.strictEqual(escapeMarkdown('CVE-2024-4242'), 'CVE-2024-4242');
+    assert.strictEqual(escapeMarkdown('a\nb'), 'a b');
   });
 
   test('typosquat hover shows suggestion as inline code', () => {

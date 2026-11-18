@@ -6,7 +6,7 @@
  * `credenzo` first and for `mcp-audit` second.
  *
  * Resolution order (mirrors the install instructions):
- *  1. `mcp-audit.binaryPath` workspace/user setting (explicit override)
+ *  1. `mcp-audit.binaryPath` user setting (machine scope; a workspace can not set it)
  *  2. `credenzo` or `mcp-audit` on PATH  (via `which` / `where`)
  *  3. Common install directories (platform-specific)
  */
@@ -74,6 +74,9 @@ function whichSync(): string | undefined {
     const binary = IS_WINDOWS ? `${name}.exe` : name;
     try {
       const result = cp.spawnSync(cmd, [binary], {
+        // `where` on Windows looks in the current directory first. Run it in
+        // the home directory, never in a workspace folder.
+        cwd: os.homedir(),
         encoding: 'utf8',
         timeout: 3_000,
         windowsHide: true,

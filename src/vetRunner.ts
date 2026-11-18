@@ -83,8 +83,11 @@ export function runVet(
   return new Promise<VetResult[]>((resolve, reject) => {
     const spawnImpl = options.spawnFn ?? cp.spawn;
 
-    const args = ['vet', ...names, '--format', 'json'];
+    // Options first, then `--`: a server name from the open file (for example
+    // "--online") is then an argument and can not be read as an option.
+    const args = ['vet', '--format', 'json'];
     if (options.online) args.push('--online');
+    args.push('--', ...names);
 
     const proc = spawnImpl(binaryPath, args, { shell: false });
 

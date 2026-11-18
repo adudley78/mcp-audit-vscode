@@ -232,6 +232,18 @@ suite('vetRunner — runVet()', () => {
     );
   });
 
+  test('a server name that looks like an option stays an argument', async () => {
+    const proc = makeProc('[]', 0);
+    const spawnStub = sinon.stub().returns(proc);
+    await runVet(
+      '/bin/credenzo',
+      ['--online', 'filesystem'],
+      { online: false, spawnFn: spawnStub as unknown as SpawnLike }
+    );
+    const [, args] = spawnStub.firstCall.args as [string, string[], unknown];
+    assert.deepStrictEqual(args, ['vet', '--format', 'json', '--', '--online', 'filesystem']);
+  });
+
   test('shell: false is always set on spawn options', async () => {
     const proc = makeProc(JSON.stringify(verified), 0);
     const spawnStub = sinon.stub().returns(proc);
