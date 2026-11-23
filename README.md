@@ -2,6 +2,7 @@
 
 [![Open VSX](https://img.shields.io/open-vsx/v/mcp-audit/mcp-audit-vscode)](https://open-vsx.org/extension/mcp-audit/mcp-audit-vscode)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/adudley78/credenzo?style=social)](https://github.com/adudley78/credenzo)
 
 > **mcp-audit is now Credenzo.** The extension id (`mcp-audit.mcp-audit-vscode`), the command ids and the `mcp-audit.*` settings keep their names, so an installed extension and your settings continue to work.
 
@@ -23,7 +24,7 @@ The extension runs the `credenzo` command (or `mcp-audit`, its old name, when on
 pip install credenzo
 ```
 
-Or download a standalone binary for macOS, Linux, or Windows from the [Releases page](https://github.com/adudley78/mcp-audit/releases).
+Or download a standalone binary for macOS, Linux, or Windows from the [Releases page](https://github.com/adudley78/credenzo/releases).
 
 ### Step 2 — Install this extension
 
@@ -187,18 +188,24 @@ This is a known limitation — see above. The finding is still reported correctl
 
 Please open an issue on the [mcp-audit-vscode issue tracker](https://github.com/adudley78/mcp-audit-vscode/issues).
 
-For false positives or missed findings, please open an issue on the main [Credenzo repo](https://github.com/adudley78/mcp-audit/issues) — those are detection bugs in the CLI, not the extension.
+For false positives or missed findings, please open an issue on the main [Credenzo repo](https://github.com/adudley78/credenzo/issues) — those are detection bugs in the CLI, not the extension.
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/adudley78/mcp-audit/blob/main/docs/contributing-rules.md) in the main Credenzo repo for information on contributing detection rules.
+See [CONTRIBUTING.md](https://github.com/adudley78/credenzo/blob/main/docs/contributing-rules.md) in the main Credenzo repo for information on contributing detection rules.
 
 For extension bugs and PRs, see the [mcp-audit-vscode repository](https://github.com/adudley78/mcp-audit-vscode).
 
 ---
 
+## Support the project
+
+Credenzo and this extension are free and open source. If the extension helps you, [star Credenzo on GitHub](https://github.com/adudley78/credenzo): a star is how other teams find it.
+
+---
+
 ## License
 
-Apache 2.0 — same as the main [Credenzo](https://github.com/adudley78/mcp-audit) project.
+Apache 2.0 — same as the main [Credenzo](https://github.com/adudley78/credenzo) project.
